@@ -1,14 +1,14 @@
 /* Offline shell for Iron Ledger.
    The app itself is cached so it opens without a connection; /api/state is
    never cached, because a stale record is worse than an honest error. */
-const CACHE = "iron-ledger-v4";
+const CACHE = "iron-ledger-v5";
 const SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/apple-touch-icon.png"
+  "/icon-192-v2.png",
+  "/icon-512-v2.png",
+  "/apple-touch-icon-v2.png"
 ];
 
 self.addEventListener("install", (e) => {

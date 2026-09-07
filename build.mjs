@@ -47,8 +47,8 @@ const out = `<!doctype html>
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121416">
 <meta name="description" content="Training and household accountability. Blunt on purpose.">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/favicon-32.png" sizes="32x32">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/favicon-32-v2.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon-v2.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
