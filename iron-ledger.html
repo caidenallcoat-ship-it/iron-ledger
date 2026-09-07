@@ -530,8 +530,13 @@
   </section>
 
   <section class="panel">
-    <h2>Appearance</h2>
+    <h2>Settings</h2>
     <div class="box appearance">
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Reminders</div>
+        <button class="btn" type="button" id="notif-btn">Turn on 6pm reminders</button>
+        <p class="sec-note" id="notif-note" style="margin-top:8px"></p>
+      </div>
       <div>
         <div class="eyebrow" style="margin-bottom:8px">Scheme</div>
         <div class="swatches" id="swatches"></div>
@@ -571,10 +576,7 @@
 
   <footer>
     <span id="sync-state">Working out where to save your record…</span>
-    <span class="foot-actions">
-      <button class="link-btn" id="notif-btn" type="button" hidden>Reminders</button>
-      <button class="link-btn" id="reset-btn" type="button">Wipe the ledger</button>
-    </span>
+    <button class="link-btn" id="reset-btn" type="button">Wipe the ledger</button>
   </footer>
 </div>
 
@@ -1901,11 +1903,23 @@ var Notify = (function(){
   }
   function btn(){ return document.getElementById("notif-btn"); }
 
-  function paint(on, label){
+  function note(msg){
+    const n = document.getElementById("notif-note");
+    if(n) n.textContent = msg || "";
+  }
+  function paint(on, label, why){
     const b = btn(); if(!b) return;
     b.hidden = false;
-    b.textContent = label || (on ? "Reminders on" : "Turn on 6pm reminders");
+    b.textContent = label || (on ? "Reminders are on" : "Turn on 6pm reminders");
     b.setAttribute("data-on", on ? "1" : "0");
+    note(why);
+  }
+  function isIOS(){
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+  function installed(){
+    return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
   }
 
   async function existing(){
@@ -1933,7 +1947,8 @@ var Notify = (function(){
       headers:{ "x-ledger-key": Store.secret(), "Content-Type":"application/json" },
       body: JSON.stringify({ subscription: sub })
     });
-    paint(r.ok, r.ok ? "Reminders on" : "Couldn't register — tap to retry");
+    paint(r.ok, r.ok ? "Reminders are on" : "Couldn't register — tap to retry",
+      r.ok ? "Registered. Ask Claude to send a test one." : "The server rejected the registration.");
   }
 
   async function disable(){
@@ -1948,19 +1963,39 @@ var Notify = (function(){
       }catch(e){}
       await sub.unsubscribe();
     }
-    paint(false, "Turn on 6pm reminders");
+    paint(false, "Turn on 6pm reminders", "Turned off on this device.");
   }
 
   return {
     init: async function(){
       const b = btn(); if(!b) return;
-      if(Store.mode() !== "api" || !supported()){ b.hidden = true; return; }
+
+      if(Store.mode() !== "api"){
+        b.disabled = true;
+        paint(false, "Reminders need syncing",
+          "This device isn't connected to your server, so there's nothing to remind from.");
+        return;
+      }
+      if(!supported()){
+        b.disabled = true;
+        /* iOS only exposes push to an installed PWA. Say that, rather than
+           leaving a dead control or no control at all. */
+        paint(false, "Reminders unavailable here",
+          isIOS() && !installed()
+            ? "On iPhone, reminders only work from the home-screen app. Tap Share → Add to Home Screen, then open Iron Ledger from that icon and come back here."
+            : "This browser doesn't support web notifications. Try Chrome, Edge, or Safari 16.4+ from the home screen.");
+        return;
+      }
       if(Notification.permission === "denied"){
-        paint(false, "Reminders blocked in browser settings");
+        b.disabled = true;
+        paint(false, "Reminders blocked",
+          "Notifications are blocked for this site in your browser or phone settings. Allow them there, then reload.");
         return;
       }
       const sub = await existing().catch(function(){ return null; });
-      paint(Boolean(sub));
+      paint(Boolean(sub), null, sub
+        ? "This device will get the nudge at 6pm. Tap to turn it off."
+        : "One tap. The nudge arrives at 6pm whether or not anything else is running.");
       b.addEventListener("click", function(){
         if(b.getAttribute("data-on") === "1") disable(); else enable();
       });
