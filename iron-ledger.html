@@ -336,7 +336,9 @@
 
   /* unlock gate */
   .gate{position:fixed;inset:0;z-index:50;background:var(--ground);
-    display:flex;align-items:center;justify-content:center;padding:24px}
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:calc(28px + env(safe-area-inset-top)) 20px 28px;overflow-y:auto}
+  @media (min-height:620px){ .gate{align-items:center} }
   .gate-box{max-width:420px;width:100%;display:flex;flex-direction:column;gap:13px}
   .gate-box h2{font-size:clamp(21px,4vw,27px);line-height:1.15;letter-spacing:-.015em}
   .gate-box p{margin:0;color:var(--ink2);font-size:14.5px;max-width:52ch}
@@ -642,7 +644,9 @@
       <div class="eyebrow">Locked</div>
       <h2>This ledger needs your key.</h2>
       <p>It syncs through your own server. Paste the value you set as <code>LEDGER_KEY</code> — once per device, then it remembers.</p>
-      <input id="gate-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Ledger key">
+      <input id="gate-key" type="text" inputmode="text" autocomplete="off"
+             autocapitalize="none" autocorrect="off" spellcheck="false"
+             placeholder="word-word-word-word" aria-label="Ledger key">
       <div class="gate-actions">
         <button class="btn btn-primary" type="button" id="gate-save">Unlock</button>
         <button class="btn btn-ghost" type="button" id="gate-skip">Skip for now</button>
@@ -983,9 +987,15 @@ var Store = (function(){
     /* Called after the gate is filled in. */
     unlock: function(k, apply, onFail){
       Store.setSecret(k);
-      fetch("/api/state", {method:"GET", headers:headers(false)})
+      /* A request with no ceiling on a phone is indistinguishable from a
+         frozen page, so give it one. */
+      const ctl = ("AbortController" in window) ? new AbortController() : null;
+      const timer = setTimeout(function(){ if(ctl) ctl.abort(); }, 12000);
+      fetch("/api/state", {method:"GET", headers:headers(false), signal: ctl ? ctl.signal : undefined})
         .then(function(r){
-          if(r.status === 401){ onFail("That key was rejected."); return null; }
+          clearTimeout(timer);
+          if(r.status === 401){ onFail("That key wasn't accepted. Check for typos — it's four words with hyphens."); return null; }
+          if(r.status === 429){ onFail("Too many attempts. Wait 15 minutes and try again."); return null; }
           if(!r.ok){ onFail("Server error " + r.status + "."); return null; }
           mode = "api";
           return r.json();
@@ -997,7 +1007,12 @@ var Store = (function(){
           markReady();
           onFail(null);
         })
-        .catch(function(){ onFail("Couldn't reach the server."); });
+        .catch(function(e){
+          clearTimeout(timer);
+          onFail(e && e.name === "AbortError"
+            ? "The server didn't answer. Check your connection and try again."
+            : "Couldn't reach the server.");
+        });
     },
 
     goLocal: function(){ mode = "local"; setSync("Saved in this browser only."); markReady(); },
@@ -2242,12 +2257,20 @@ function showGate(msg){
 
 (function wireGate(){
   const gate = document.getElementById("gate");
-  document.getElementById("gate-save").addEventListener("click", function(){
-    const k = document.getElementById("gate-key").value.trim();
-    if(!k) return;
+  const saveBtn = document.getElementById("gate-save");
+  saveBtn.addEventListener("click", function(){
+    const field = document.getElementById("gate-key");
+    const k = field.value.trim();
+    if(!k){ field.focus(); return; }
+    if(saveBtn.disabled) return;
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Checking…";
+    field.blur();                       // drop the keyboard so the result is visible
     Store.unlock(k, adoptRemote, function(problem){
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Unlock";
       if(problem) showGate(problem);
-      else gate.hidden = true;
+      else { gate.hidden = true; renderAll(); }
     });
   });
   document.getElementById("gate-key").addEventListener("keydown", function(e){
