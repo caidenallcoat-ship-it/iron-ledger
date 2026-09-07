@@ -483,11 +483,14 @@
     .secnav{margin:0 -14px;padding:0 14px}
     .verdict{padding:18px 16px}
     .sess-top,.strip,.actions,.excuse,.note-bar,.cue{padding-left:16px;padding-right:16px}
-    ul.lifts > li .lift{padding:11px 16px;gap:10px;flex-wrap:wrap}
-    .lift-n{flex:1 1 100%;order:2}
-    .tick{order:1}
-    .lift-d{order:3;margin-left:auto}
-    .how{order:4}
+    /* Tick and name share the first line; reps and How fall to a second only
+       when the name is long. Forcing the name to 100% made every exercise
+       three lines tall. */
+    ul.lifts > li .lift{padding:11px 16px;gap:9px;flex-wrap:wrap;align-items:center}
+    .tick{order:1;flex:0 0 auto}
+    .lift-n{order:2;flex:1 1 auto;min-width:0}
+    .lift-d{order:3;flex:0 0 auto;margin-left:auto;font-size:15px;color:var(--ink)}
+    .how{order:4;flex:0 0 auto}
     .job{padding:11px 16px}
     .job-n{flex:1 1 100%}
     .box{padding:14px 16px}
