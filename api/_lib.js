@@ -96,7 +96,17 @@ const SESSIONS = {
   D: { name: "Press", day: 5 },
   E: { name: "Grinder", day: 6 },
 };
-const BY_DAY = { 1: "A", 2: "B", 4: "C", 5: "D", 6: "E" };
+const CYCLE = ["A", "B", "C", "D", "E"];
+
+/** Next in the cycle after the last one actually completed. */
+function nextSessionKey(done) {
+  const days = Object.keys(done).sort();
+  for (let i = days.length - 1; i >= 0; i--) {
+    const k = done[days[i]] && done[days[i]].key;
+    if (CYCLE.indexOf(k) > -1) return CYCLE[(CYCLE.indexOf(k) + 1) % CYCLE.length];
+  }
+  return CYCLE[0];
+}
 const DAY_NAMES = [
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 ];
@@ -149,32 +159,24 @@ export function buildNudge(state, todayKey) {
   const start = state.start || todayKey;
 
   const dow = dowOf(todayKey);
-  const sk = BY_DAY[dow];
-  const session = sk ? SESSIONS[sk] : null;
+  const sk = done[todayKey] && done[todayKey].key ? done[todayKey].key : nextSessionKey(done);
+  const session = SESSIONS[sk];
   const doneToday = Boolean(done[todayKey]);
 
   // This week, Monday-start.
   const monday = addDays(todayKey, -((dow + 6) % 7));
   let weekDone = 0;
   for (let i = 0; i < 7; i++) if (done[addDays(monday, i)]) weekDone++;
+  // Every remaining day is a possible training day now.
   let daysLeft = 0;
-  for (let i = 0; i < 7; i++) {
-    const k = addDays(monday, i);
-    if (k >= todayKey && BY_DAY[dowOf(k)]) daysLeft++;
-  }
+  for (let i = 0; i < 7; i++) if (addDays(monday, i) >= todayKey) daysLeft++;
 
   const doneKeys = Object.keys(done).sort();
   const last = doneKeys.length ? doneKeys[doneKeys.length - 1] : null;
   const gap = last ? daysBetween(last, todayKey) : null;
 
-  // Two scheduled days in a row missed, before today.
-  const seen = [];
-  for (let i = 1; i <= 14 && seen.length < 2; i++) {
-    const k = addDays(todayKey, -i);
-    if (k < start) break;
-    if (BY_DAY[dowOf(k)]) seen.push(Boolean(done[k]));
-  }
-  const missedTwice = seen.length === 2 && !seen[0] && !seen[1];
+  // Never-miss-twice for a queue: quiet for two days while short on the week.
+  const drifting = gap !== null && gap >= 2 && weekDone < target;
 
   // Excuses.
   const tally = {};
@@ -207,27 +209,22 @@ export function buildNudge(state, todayKey) {
   }
 
   // Day one.
-  const elapsedTrainingDays = (() => {
-    let n = 0;
-    for (let k = start; k < todayKey; k = addDays(k, 1)) if (BY_DAY[dowOf(k)]) n++;
-    return n;
-  })();
+  const elapsedDays = daysBetween(start, todayKey);
 
-  if (doneKeys.length === 0 && elapsedTrainingDays === 0) {
+  if (doneKeys.length === 0 && elapsedDays === 0) {
     const started = Array.isArray(ticks[todayKey]) && ticks[todayKey].length;
-    if (!session) return { title: T, body: `Nothing logged yet. Target is ${target} sessions a week.${jobLine}` };
     return {
       title: T,
       body: started
         ? `You ticked ${plural(ticks[todayKey].length, "exercise")} and stopped. Session ${sk} — ${session.name}, about 30 minutes. Finish it.`
-        : `Day one — Session ${sk}, ${session.name}, about 30 minutes from 18:30. Target is ${target} a week, not all five.`,
+        : `Day one — Session ${sk}, ${session.name}, about 30 minutes from 18:30. Target is ${plural(target, "session")} a week, on whatever days suit.`,
     };
   }
 
   if (doneKeys.length === 0) {
     return {
       title: T,
-      body: `You've never finished a session. ${plural(elapsedTrainingDays, "training day")} have gone by since you started.${jobLine}`,
+      body: `You've never finished a session. ${plural(elapsedDays, "day")} since you started, and Session ${sk} is still first in the queue.${jobLine}`,
     };
   }
 
@@ -241,36 +238,26 @@ export function buildNudge(state, todayKey) {
   if (gap !== null && gap >= 7) {
     return {
       title: T,
-      body: session
-        ? `${plural(gap, "day")} off. Session ${sk} tonight — take the short version, it counts. The first one back is the only hard one.`
-        : `${plural(gap, "day")} off. Next session is tomorrow. Nothing to rebuild, just start.`,
+      body: `${plural(gap, "day")} off. Session ${sk} is next — take the short version, it counts. The first one back is the only hard one.`,
     };
   }
 
-  if (missedTwice) {
+  if (drifting) {
     return {
       title: T,
-      body: `That's two in a row — that's how it stops.${topReason ? ` "${topReason}" ${topCount}×.` : ""}${session ? ` Session ${sk} tonight, short version if that's what it takes.` : ""}`,
+      body: `Two days quiet and short on the week.${topReason ? ` "${topReason}" ${topCount}×.` : ""} Session ${sk} — ${session.name}, short version if that's what it takes.`,
     };
   }
 
-  if (session && daysLeft <= target - weekDone) {
+  if (daysLeft <= target - weekDone) {
     return {
       title: T,
-      body: `${weekDone} of ${target}, and ${plural(daysLeft, "session")} left to get there. Every one is compulsory now. Session ${sk} — ${session.name}.`,
+      body: `${weekDone} of ${target}, ${plural(daysLeft, "day")} left. Every one counts now. Session ${sk} — ${session.name}.`,
     };
   }
 
-  if (session) {
-    return {
-      title: T,
-      body: `${weekDone} of ${target} this week. Session ${sk} — ${session.name}, 18:30, about 30 minutes.${jobLine}`,
-    };
-  }
-
-  // Rest day, still short on the week.
   return {
     title: T,
-    body: `Rest day. ${weekDone} of ${target}, ${plural(daysLeft, "training day")} left.${jobLine || " Good evening to clear a job."}`,
+    body: `${weekDone} of ${target} this week. Session ${sk} — ${session.name}, about 30 minutes.${jobLine}`,
   };
 }
