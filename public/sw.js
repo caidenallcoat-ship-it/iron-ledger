@@ -1,7 +1,7 @@
 /* Offline shell for Iron Ledger.
    The app itself is cached so it opens without a connection; /api/state is
    never cached, because a stale record is worse than an honest error. */
-const CACHE = "iron-ledger-v1";
+const CACHE = "iron-ledger-v2";
 const SHELL = [
   "/",
   "/index.html",
@@ -42,5 +42,37 @@ self.addEventListener("fetch", (e) => {
       .catch(() =>
         caches.match(e.request).then((hit) => hit || caches.match("/index.html"))
       )
+  );
+});
+
+/* ---------- push ---------- */
+
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; }
+  catch { d = { body: e.data ? e.data.text() : "" }; }
+
+  e.waitUntil(
+    self.registration.showNotification(d.title || "Iron Ledger", {
+      body: d.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: "iron-ledger-nudge",   // one at a time; a new one replaces the old
+      renotify: true,
+      data: { url: d.url || "/" }
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "/";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (c.url.startsWith(self.location.origin)) return c.focus();
+      }
+      return self.clients.openWindow(url);
+    })
   );
 });

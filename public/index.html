@@ -360,6 +360,9 @@
   .link-btn{background:none;border:0;padding:0;font-family:"IBM Plex Mono",monospace;font-size:11.5px;
     color:var(--muted);text-decoration:underline;text-underline-offset:3px;letter-spacing:.04em}
   .link-btn:hover{color:var(--miss)}
+  .foot-actions{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  #notif-btn[data-on="1"]{color:var(--done)}
+  #notif-btn:hover{color:var(--ink)}
 
   [hidden]{display:none!important}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -484,7 +487,10 @@
 
   <footer>
     <span id="sync-state">Working out where to save your record…</span>
-    <button class="link-btn" id="reset-btn" type="button">Wipe the ledger</button>
+    <span class="foot-actions">
+      <button class="link-btn" id="notif-btn" type="button" hidden>Reminders</button>
+      <button class="link-btn" id="reset-btn" type="button">Wipe the ledger</button>
+    </span>
   </footer>
 </div>
 
@@ -821,6 +827,7 @@ var Store = (function(){
 
     /* Anything queued while offline goes out as soon as there's a connection. */
     pending: function(){ return pendingPush; },
+    secret: function(){ return secret; },
     flush: function(){ if(pendingPush && mode === "api" && navigator.onLine) pushApi(); }
   };
 })();
@@ -1726,6 +1733,92 @@ renderGuide();
 wireAddJob();
 renderAll();
 
+/* ---------- push notifications ----------
+   The point of these is that the nudge arrives whether or not anything else
+   is running. Only offered when there's a server to register with. */
+const VAPID_PUBLIC = "BIHosMQCcu3gLYICNGINTetxJ6PGzJpAYKiK2pFrrENwf1uI0vc_dYln7UhrfxA0HUU2mauW3U26oeFVqZIE0-c";
+
+function b64ToBytes(b64){
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  const out = new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+var Notify = (function(){
+  function supported(){
+    return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  }
+  function btn(){ return document.getElementById("notif-btn"); }
+
+  function paint(on, label){
+    const b = btn(); if(!b) return;
+    b.hidden = false;
+    b.textContent = label || (on ? "Reminders on" : "Turn on 6pm reminders");
+    b.setAttribute("data-on", on ? "1" : "0");
+  }
+
+  async function existing(){
+    const reg = await navigator.serviceWorker.ready;
+    return reg.pushManager.getSubscription();
+  }
+
+  async function enable(){
+    paint(false, "Asking…");
+    const perm = await Notification.requestPermission();
+    if(perm !== "granted"){
+      paint(false, perm === "denied" ? "Reminders blocked in browser settings" : "Turn on 6pm reminders");
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: b64ToBytes(VAPID_PUBLIC)
+      });
+    }
+    const r = await fetch("/api/subscribe", {
+      method:"POST",
+      headers:{ "x-ledger-key": Store.secret(), "Content-Type":"application/json" },
+      body: JSON.stringify({ subscription: sub })
+    });
+    paint(r.ok, r.ok ? "Reminders on" : "Couldn't register — tap to retry");
+  }
+
+  async function disable(){
+    const sub = await existing();
+    if(sub){
+      try{
+        await fetch("/api/subscribe", {
+          method:"DELETE",
+          headers:{ "x-ledger-key": Store.secret(), "Content-Type":"application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint })
+        });
+      }catch(e){}
+      await sub.unsubscribe();
+    }
+    paint(false, "Turn on 6pm reminders");
+  }
+
+  return {
+    init: async function(){
+      const b = btn(); if(!b) return;
+      if(Store.mode() !== "api" || !supported()){ b.hidden = true; return; }
+      if(Notification.permission === "denied"){
+        paint(false, "Reminders blocked in browser settings");
+        return;
+      }
+      const sub = await existing().catch(function(){ return null; });
+      paint(Boolean(sub));
+      b.addEventListener("click", function(){
+        if(b.getAttribute("data-on") === "1") disable(); else enable();
+      });
+    }
+  };
+})();
+
 function adoptRemote(d){
   const mine = (state && state.updatedAt) || 0;
   const theirs = (d && d.updatedAt) || 0;
@@ -1763,6 +1856,8 @@ function showGate(msg){
 })();
 
 Store.start(adoptRemote, showGate);
+
+setTimeout(function(){ Notify.init(); }, 1200);
 
 window.addEventListener("online", function(){ Store.flush(); });
 document.addEventListener("visibilitychange", function(){
