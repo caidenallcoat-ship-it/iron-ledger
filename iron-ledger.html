@@ -1,0 +1,1282 @@
+<title>Iron Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#E4E3DE;
+    --surface:#F4F3EF;
+    --surface2:#EAE9E3;
+    --ink:#15181A;
+    --ink2:#3E4448;
+    --muted:#6E7470;
+    --line:#CBCAC3;
+    --line2:#B2B1A9;
+    --iron:#2E3338;
+    --on-iron:#F0EFEA;
+    --done:#2C7A4D;
+    --done-soft:#CBDFD2;
+    --miss:#AD2C22;
+    --miss-soft:#EDD0CC;
+    --warn:#B87213;
+    --warn-soft:#EFDCBD;
+    --grim:#6E1B14;
+    --cue-bg:#EDECE6;
+    --focus:#1B6FB5;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#121416; --surface:#1B1E21; --surface2:#23272B;
+      --ink:#EAE9E4; --ink2:#B6BAB8; --muted:#868C89;
+      --line:#31363A; --line2:#454C51;
+      --iron:#D3D7DA; --on-iron:#15181A;
+      --done:#4FAD77; --done-soft:#1D3729;
+      --miss:#E2604F; --miss-soft:#3A1B16;
+      --warn:#DFA245; --warn-soft:#3A2B12;
+      --grim:#F07C6A; --cue-bg:#15181B; --focus:#63B0EA;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#121416; --surface:#1B1E21; --surface2:#23272B;
+    --ink:#EAE9E4; --ink2:#B6BAB8; --muted:#868C89;
+    --line:#31363A; --line2:#454C51;
+    --iron:#D3D7DA; --on-iron:#15181A;
+    --done:#4FAD77; --done-soft:#1D3729;
+    --miss:#E2604F; --miss-soft:#3A1B16;
+    --warn:#DFA245; --warn-soft:#3A2B12;
+    --grim:#F07C6A; --cue-bg:#15181B; --focus:#63B0EA;
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);margin:0;
+    font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.55;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:26px 20px 72px;display:flex;flex-direction:column;gap:26px}
+  h1,h2,h3{font-family:"Archivo Black","Archivo",Arial,sans-serif;font-weight:400;margin:0;text-wrap:balance}
+  .eyebrow{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  button{font-family:"Archivo",sans-serif;cursor:pointer}
+  button:focus-visible,[tabindex]:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+  /* masthead */
+  .masthead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    border-bottom:2px solid var(--ink);padding-bottom:10px}
+  .masthead h1{font-size:24px;letter-spacing:-.015em;text-transform:uppercase}
+  .mast-meta{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
+
+  /* day clock */
+  .clock{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+  .slot{background:var(--surface);padding:10px 13px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+  .slot-t{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;letter-spacing:.07em;
+    color:var(--muted);font-variant-numeric:tabular-nums}
+  .slot-l{font-size:13px;color:var(--ink2);line-height:1.35}
+  .slot[data-now="1"]{background:var(--warn-soft)}
+  .slot[data-now="1"] .slot-t{color:var(--warn)}
+  .slot[data-now="1"] .slot-l{color:var(--ink);font-weight:500}
+  .slot[data-past="1"]{opacity:.45}
+
+  /* verdict */
+  .verdict{background:var(--iron);color:var(--on-iron);padding:clamp(20px,3vw,28px);
+    border-left:10px solid var(--warn);display:flex;flex-direction:column;gap:12px}
+  .verdict[data-sev="ok"]{border-left-color:var(--done)}
+  .verdict[data-sev="bad"]{border-left-color:var(--miss)}
+  .verdict[data-sev="grim"]{border-left-color:var(--grim);background:var(--grim);color:#FBEDEA}
+  .verdict .eyebrow{color:inherit;opacity:.7}
+  .v-line{font-family:"Archivo Black",Arial,sans-serif;font-size:clamp(21px,4vw,32px);
+    line-height:1.16;letter-spacing:-.018em;margin:0}
+  .v-sub{margin:0;font-size:14.5px;opacity:.85;max-width:62ch}
+  .v-sub b{opacity:1;font-weight:700}
+
+  /* figures */
+  .figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line)}
+  .fig{background:var(--surface);padding:14px 15px 13px;display:flex;flex-direction:column;gap:3px}
+  .fig .n{font-family:"Archivo Black",Arial,sans-serif;font-size:28px;line-height:1.05;
+    font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .fig .n small{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;
+    color:var(--muted);letter-spacing:0}
+  .fig .k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--muted)}
+  .fig[data-flag="bad"] .n{color:var(--miss)}
+  .fig[data-flag="good"] .n{color:var(--done)}
+
+  /* section shell */
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    flex-wrap:wrap;margin-bottom:11px}
+  .sec-head h2{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;
+    letter-spacing:.16em;text-transform:uppercase}
+  .sec-note{font-size:13px;color:var(--muted);margin:0;max-width:60ch}
+
+  /* session */
+  .panel{background:var(--surface);border:1px solid var(--line)}
+  .sess-top{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;
+    justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .sess-title{font-size:clamp(19px,3vw,25px);line-height:1.12;letter-spacing:-.01em}
+  .sess-sub{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--muted);margin:5px 0 0}
+  .chip{font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;letter-spacing:.09em;
+    text-transform:uppercase;padding:5px 10px;background:var(--warn-soft);color:var(--warn);white-space:nowrap}
+  .chip[data-v="done"]{background:var(--done-soft);color:var(--done)}
+  .chip[data-v="rest"]{background:var(--surface2);color:var(--muted)}
+
+  .strip{padding:11px 20px;border-bottom:1px dashed var(--line);font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px;color:var(--ink2);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .strip b{color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-size:10.5px;
+    font-weight:600;white-space:nowrap}
+
+  ul.lifts{list-style:none;margin:0;padding:0}
+  ul.lifts > li{border-bottom:1px solid var(--line)}
+  ul.lifts > li:last-child{border-bottom:0}
+  .lift{display:flex;align-items:center;gap:13px;padding:12px 20px;cursor:pointer;user-select:none}
+  .lift:hover{background:var(--surface2)}
+  .lift:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+  .tick{width:21px;height:21px;flex:none;border:2px solid var(--line2);display:grid;place-items:center}
+  .tick svg{width:12px;height:12px;opacity:0}
+  .lift[aria-checked="true"] .tick{background:var(--done);border-color:var(--done)}
+  .lift[aria-checked="true"] .tick svg{opacity:1}
+  .lift[aria-checked="true"] .lift-n{color:var(--muted);text-decoration:line-through}
+  .lift-n{font-weight:500;flex:1;min-width:0}
+  .lift-d{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:13.5px;
+    font-variant-numeric:tabular-nums;color:var(--ink2);white-space:nowrap;text-align:right}
+  .how{flex:none;font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+    letter-spacing:.09em;text-transform:uppercase;padding:5px 9px;border:1px solid var(--line2);
+    background:transparent;color:var(--muted)}
+  .how:hover{border-color:var(--ink);color:var(--ink)}
+  .how[aria-expanded="true"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
+
+  .cue{background:var(--cue-bg);border-top:1px solid var(--line);padding:14px 20px 16px;
+    display:flex;flex-direction:column;gap:9px}
+  .cue-row{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:baseline}
+  .cue-k{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--muted)}
+  .cue-v{font-size:14px;color:var(--ink2);line-height:1.5;margin:0}
+  .cue-v b{color:var(--ink);font-weight:600}
+  .cue-row[data-fault="1"] .cue-k{color:var(--miss)}
+  .cue-row[data-fault="1"] .cue-v{color:var(--ink)}
+
+  .actions{padding:16px 20px;border-top:1px solid var(--line);background:var(--surface2);
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{font-size:14px;font-weight:600;padding:11px 19px;border:1px solid var(--line2);
+    background:var(--surface);color:var(--ink)}
+  .btn:hover{border-color:var(--ink)}
+  .btn-primary{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+  .btn-primary:hover{opacity:.87}
+  .btn-done{background:var(--done);color:#fff;border-color:var(--done)}
+  .btn-ghost{background:transparent;border-color:transparent;color:var(--muted);
+    text-decoration:underline;text-underline-offset:3px;font-weight:500;padding:11px 4px}
+  .btn-ghost:hover{color:var(--ink)}
+  .act-note{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);
+    margin-left:auto;font-variant-numeric:tabular-nums}
+
+  .express-bar{padding:13px 20px;background:var(--warn-soft);border-top:1px solid var(--line);
+    display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--ink)}
+  .express-bar .btn{padding:8px 14px;font-size:13px}
+  .express-note{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--warn);
+    letter-spacing:.1em;font-weight:600}
+
+  .excuse{padding:16px 20px 20px;border-top:2px solid var(--miss);background:var(--miss-soft);
+    display:flex;flex-direction:column;gap:12px}
+  .excuse-q{font-family:"Archivo Black",Arial,sans-serif;font-size:17px;margin:0;line-height:1.25}
+  .excuse-opts{display:flex;gap:8px;flex-wrap:wrap}
+  .excuse-opt{background:var(--surface);border:1px solid var(--line2);color:var(--ink);
+    font-size:13px;font-weight:500;padding:8px 13px}
+  .excuse-opt:hover{border-color:var(--miss)}
+  .excuse-n{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--miss);font-weight:600}
+
+  /* the house */
+  .house-verdict{padding:13px 20px;background:var(--surface2);border-bottom:1px solid var(--line);
+    font-size:14px;color:var(--ink2);display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+  .house-verdict b{color:var(--ink);font-weight:600}
+  .house-verdict[data-s="over"]{background:var(--miss-soft)}
+  .house-verdict[data-s="ok"]{background:var(--done-soft)}
+  ul.jobs{list-style:none;margin:0;padding:0}
+  ul.jobs > li{border-bottom:1px solid var(--line)}
+  ul.jobs > li:last-child{border-bottom:0}
+  ul.jobs > li[data-s="over"]{box-shadow:inset 3px 0 0 var(--miss)}
+  ul.jobs > li[data-s="due"]{box-shadow:inset 3px 0 0 var(--warn)}
+  .job{display:flex;align-items:center;gap:12px;padding:11px 20px;flex-wrap:wrap}
+  .job-n{font-weight:500;flex:1;min-width:120px}
+  .job-when{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pill{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+    padding:3px 8px;white-space:nowrap;background:var(--surface2);color:var(--muted)}
+  .pill[data-s="due"]{background:var(--warn-soft);color:var(--warn)}
+  .pill[data-s="over"]{background:var(--miss-soft);color:var(--miss)}
+  .pill[data-s="ok"]{background:var(--done-soft);color:var(--done)}
+  .job-do{font-family:"Archivo",sans-serif;font-size:12.5px;font-weight:600;padding:6px 12px;
+    border:1px solid var(--line2);background:var(--surface);color:var(--ink);white-space:nowrap}
+  .job-do:hover{border-color:var(--ink)}
+  .job-ed{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+    padding:6px 8px;border:1px solid transparent;background:transparent;color:var(--muted)}
+  .job-ed:hover{color:var(--ink);border-color:var(--line2)}
+  .job-edit{background:var(--cue-bg);border-top:1px solid var(--line);padding:14px 20px;
+    display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted)}
+  .field input{font-family:"Archivo",sans-serif;font-size:14px;padding:8px 10px;
+    border:1px solid var(--line2);background:var(--surface);color:var(--ink)}
+  .field input[type=number]{width:86px}
+  .field.grow{flex:1;min-width:170px}
+  .job-edit .btn{padding:8px 15px;font-size:13.5px}
+  .btn-danger{color:var(--miss);border-color:var(--miss)}
+  .btn-danger:hover{background:var(--miss-soft);border-color:var(--miss)}
+
+  /* punch card */
+  .box{background:var(--surface);border:1px solid var(--line);padding:18px 20px}
+  .cal-scroll{overflow-x:auto;padding-bottom:6px}
+  .cal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:4px;min-width:660px}
+  .cell{width:100%;aspect-ratio:1;min-height:15px;background:var(--surface2);border:0;padding:0;cursor:default}
+  .cell[data-s="done"]{background:var(--done)}
+  .cell[data-s="express"]{background:var(--done);opacity:.5}
+  .cell[data-s="miss"]{background:var(--miss)}
+  .cell[data-s="due"]{background:var(--warn)}
+  .cell[data-s="sched"]{background:transparent;border:1.5px dashed var(--line2)}
+  .cell[data-s="none"]{background:transparent}
+  .cell[data-click="1"]{cursor:pointer}
+  .cell[data-click="1"]:hover{outline:2px solid var(--ink);outline-offset:1px}
+  .legend{display:flex;gap:15px;flex-wrap:wrap;margin-top:14px;font-family:"IBM Plex Mono",monospace;
+    font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .key{width:11px;height:11px;display:inline-block}
+
+  /* excuse ledger */
+  .lrows{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line)}
+  .lrow{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;
+    background:var(--surface);padding:11px 14px}
+  .lrow-n{font-weight:500}
+  .lrow-last{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted)}
+  .lrow-bar{height:7px;background:var(--miss);min-width:4px}
+  .lrow-c{font-family:"IBM Plex Mono",monospace;font-weight:600;font-variant-numeric:tabular-nums;
+    color:var(--miss);min-width:2.5ch;text-align:right}
+  .verdict-note{margin:16px 0 0;font-size:13.5px;color:var(--ink2);border-left:3px solid var(--miss);
+    padding-left:14px;max-width:70ch}
+  .verdict-note b{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--miss)}
+  .empty{font-size:14px;color:var(--muted);margin:0;max-width:62ch}
+
+  /* guide */
+  .guide-list{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line)}
+  .guide-item{background:var(--surface)}
+  .guide-head{width:100%;display:flex;align-items:center;gap:12px;padding:12px 16px;background:transparent;
+    border:0;text-align:left;font-size:15px;font-weight:500;color:var(--ink)}
+  .guide-head:hover{background:var(--surface2)}
+  .guide-kit{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);border:1px solid var(--line);padding:3px 8px;white-space:nowrap}
+  .guide-caret{margin-left:auto;color:var(--muted);font-family:"IBM Plex Mono",monospace;font-size:14px}
+
+  /* programme */
+  .prog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line)}
+  .prog-card{background:var(--surface);padding:15px 16px;display:flex;flex-direction:column;gap:7px}
+  .prog-card[data-today="1"]{background:var(--warn-soft)}
+  .prog-day{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted)}
+  .prog-card[data-today="1"] .prog-day{color:var(--warn);font-weight:600}
+  .prog-name{font-size:16px;line-height:1.15}
+  .prog-time{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink2);font-weight:600}
+  .prog-body{font-size:13px;color:var(--ink2);margin:0}
+  .phase-note{margin:16px 0 0;font-size:13.5px;color:var(--ink2);border-left:3px solid var(--warn);
+    padding-left:14px;max-width:70ch}
+  .phase-note b{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--warn)}
+
+  footer{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);letter-spacing:.04em;
+    border-top:1px solid var(--line);padding-top:14px;display:flex;justify-content:space-between;
+    gap:14px;flex-wrap:wrap}
+  .link-btn{background:none;border:0;padding:0;font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+    color:var(--muted);text-decoration:underline;text-underline-offset:3px;letter-spacing:.04em}
+  .link-btn:hover{color:var(--miss)}
+
+  [hidden]{display:none!important}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  @media (max-width:560px){
+    .cue-row{grid-template-columns:1fr;gap:2px}
+    .clock{grid-template-columns:repeat(2,1fr)}
+    .lift{flex-wrap:wrap}
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>Iron Ledger</h1>
+    <div class="mast-meta">
+      <span id="m-date">—</span><span id="m-week">—</span><span id="m-slot">—</span>
+    </div>
+  </header>
+
+  <section class="clock" id="clock"></section>
+
+  <section class="verdict" id="verdict" data-sev="warn">
+    <div class="eyebrow" id="v-eyebrow">Reading the record</div>
+    <p class="v-line" id="v-line">Working out what you've actually done.</p>
+    <p class="v-sub" id="v-sub"></p>
+  </section>
+
+  <section class="figs" id="figs"></section>
+
+  <section>
+    <div class="sec-head"><h2>Today</h2><p class="sec-note" id="today-note"></p></div>
+    <div class="panel" id="session"></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>The house</h2>
+      <p class="sec-note">Not a streak — a clock. Each job shows how long it's actually been, and turns red once it's past due. Edit the timings to whatever you'll really hold to.</p>
+    </div>
+    <div class="panel">
+      <div class="house-verdict" id="house-verdict"></div>
+      <ul class="jobs" id="jobs"></ul>
+      <div class="actions">
+        <button class="btn" type="button" id="add-job">Add a job</button>
+        <span class="act-note" id="jobs-note"></span>
+      </div>
+      <div class="job-edit" id="add-form" hidden></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Twelve weeks</h2>
+      <p class="sec-note">Every scheduled day you leave empty turns red on its own. Click a past one to correct the record.</p>
+    </div>
+    <div class="box">
+      <div class="cal-scroll"><div class="cal" id="cal"></div></div>
+      <div class="legend">
+        <span><i class="key" style="background:var(--done)"></i>Trained</span>
+        <span><i class="key" style="background:var(--done);opacity:.5"></i>Short version</span>
+        <span><i class="key" style="background:var(--miss)"></i>Missed</span>
+        <span><i class="key" style="background:var(--warn)"></i>Due today</span>
+        <span><i class="key" style="border:1.5px dashed var(--line2)"></i>Scheduled</span>
+        <span><i class="key" style="background:var(--surface2)"></i>Rest</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Excuse ledger</h2>
+      <p class="sec-note">Every skip you named, counted, with the date you last used it. This is the part you're meant to find uncomfortable.</p>
+    </div>
+    <div class="box" id="ledger"></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>How to do everything</h2>
+      <p class="sec-note">Set-up, execution, and the one fault that catches most people. Read it sat down, not at half six with a bell in your hand.</p>
+    </div>
+    <div class="guide-list" id="guide-list"></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>The programme</h2>
+      <p class="sec-note">Five sessions a week, Wednesday and Sunday off. Eight-week block — the volume climbs, so you don't get to stay where you are.</p>
+    </div>
+    <div class="box">
+      <div class="prog-grid" id="prog-grid"></div>
+      <p class="phase-note" id="phase-note"></p>
+    </div>
+  </section>
+
+  <footer>
+    <span id="sync-state">Working out where to save your record…</span>
+    <button class="link-btn" id="reset-btn" type="button">Wipe the ledger</button>
+  </footer>
+</div>
+
+<script>
+/* =====================================================================
+   IRON LEDGER — kettlebell / push-up board / skipping rope
+   Five sessions a week around a 9–5: home 18:00, train 18:30, stop 22:00.
+   ===================================================================== */
+
+/* ---------- your day ---------- */
+const DAY = { workStart:9, workEnd:17, home:18, slot:18.5, lastStart:22, weekendSlot:10 };
+function fmtH(h){ const hh=Math.floor(h), mm=Math.round((h-hh)*60);
+  return String(hh).padStart(2,"0")+":"+String(mm).padStart(2,"0"); }
+
+/* ---------- form cues ---------- */
+const CUES = {
+  rope:{name:"Skipping",kit:"Rope",
+    setup:"Stand on the middle of the rope — the handles should reach about your armpits. Elbows in close to your ribs.",
+    doIt:"Turn the rope from your <b>wrists</b>, not your shoulders. The jumps are tiny — an inch off the floor is plenty. Land on the balls of your feet with soft knees.",
+    fault:"Big jumps and windmilling arms. That's why you catch your feet. <b>Smaller jumps, quieter landings, wrists only.</b>"},
+  hinge:{name:"Hip hinge (unloaded)",kit:"Bodyweight",
+    setup:"Feet hip-width, hands on the crease of your hips.",
+    doIt:"Push your bum straight back towards the wall behind you, chest coming forward as a counterweight. Knees bend only a little. Stand by squeezing your glutes. <b>Every swing and deadlift is built on this</b> — earn it here first.",
+    fault:"Squatting instead of hinging. If your knees travel forward and your torso stays upright, you're squatting."},
+  halo:{name:"Kettlebell halo",kit:"Kettlebell",
+    setup:"Hold the bell upside down by the horns, close to your chest.",
+    doIt:"Circle it slowly around your head, keeping it as close to you as you can. Half the reps each direction. It's a shoulder warm-up — <b>go light and slow</b>.",
+    fault:"Rushing, or letting the ribs flare and the lower back arch. Everything below the shoulders stays still."},
+  swing:{name:"Two-hand swing",kit:"Kettlebell",
+    setup:"Bell about a foot in front of you. Hinge, grip it, and tilt it back towards you so the handle points at your shins.",
+    doIt:"It's a <b>hinge, not a squat</b>. Hike the bell back above knee height, then snap your hips forward hard — glutes and abs locked at the top. Your arms are just ropes; the bell floats to chest height on its own.",
+    fault:"Squatting it up, or lifting with your shoulders. If the bell doesn't float without effort you aren't snapping your hips — <b>the power is all in the hips</b>."},
+  goblet:{name:"Goblet squat",kit:"Kettlebell",
+    setup:"Hold the bell by the horns at chest height, elbows tucked tight to your ribs. Feet a little wider than your shoulders, toes out about 15°.",
+    doIt:"Sit <b>down</b> between your hips rather than leaning forward. As deep as you can keep a flat back — elbows should brush the inside of your knees at the bottom. Drive up through the middle of your foot.",
+    fault:"Heels lifting or knees caving in. Both mean you've gone deeper than your ankles and hips currently allow — <b>stop higher</b>, it'll open up in a fortnight."},
+  cleanpress:{name:"Single-arm clean & press",kit:"Kettlebell",
+    setup:"Bell on the floor between your feet, one hand on the handle. Hinge, chest proud, and hike the bell back between your legs like a rugby pass.",
+    doIt:"Snap your hips and guide the bell up close to your body, elbow tight in. Catch it in the <b>rack</b>: bell resting on your forearm, wrist dead straight, elbow glued to your ribs. Then press overhead, biceps finishing by your ear.",
+    fault:"The bell flipping over and banging your wrist. That means you let it swing out in an arc — <b>keep the elbow in and pull it up the body</b>, don't throw it."},
+  press:{name:"Strict overhead press",kit:"Kettlebell",
+    setup:"Start in the rack — bell on the forearm, wrist straight, elbow into your ribs. Feet hip-width, glutes and abs tight.",
+    doIt:"Press straight up, no dip of the legs. Push your head slightly forward as the bell passes it so you finish with the <b>bell stacked over your shoulder</b>, not out in front. Lower under control back to the rack.",
+    fault:"Leaning back to get it up. If your lower back arches, the weight is too heavy — <b>squeeze your glutes hard</b> and it stops happening."},
+  highpull:{name:"Single-arm high pull",kit:"Kettlebell",
+    setup:"Set up exactly as a one-handed swing — bell between the feet, hinge, hike it back.",
+    doIt:"Snap the hips as if swinging, then as the bell comes up <b>pull your elbow back and high</b>, past your ribs, so the bell arrives at chest height near your shoulder. Let it fall back into the next swing.",
+    fault:"Pulling with the arm from the bottom. The hips still do the work — <b>the pull only tidies up the top</b> of a swing that was already going there."},
+  row:{name:"Single-arm row",kit:"Kettlebell",
+    setup:"Hinge forward with a flat back, free hand braced on a chair or your own knee. Bell hanging straight down.",
+    doIt:"Pull the bell to your hip, not your chest, leading with the elbow. <b>Squeeze the shoulder blade</b> towards your spine at the top and hold for a beat. Lower all the way until the arm is straight.",
+    fault:"Twisting your torso to help the bell up. Keep your shoulders level with the floor — <b>if you're rotating, go lighter</b>."},
+  rdl:{name:"Romanian deadlift",kit:"Kettlebell",
+    setup:"Stand tall holding the bell (or both) in front of your thighs, feet hip-width, knees softly bent.",
+    doIt:"Push your hips back and let the bell slide down the front of your legs, staying close to you the whole way. Go until you feel a <b>strong stretch in the hamstrings</b> — usually mid-shin — then squeeze your glutes to stand.",
+    fault:"Bending the knees more to get lower. The knee angle barely changes — <b>depth comes from the hips going back</b>, and you stop when your back would round."},
+  lunge:{name:"Racked reverse lunge",kit:"Kettlebell",
+    setup:"Bell in the rack on one side, or held at the chest. Stand tall, feet together.",
+    doIt:"Step <b>backwards</b> and lower the back knee towards the floor. Front shin stays roughly vertical. Push through the front heel to stand. Reverse is far kinder to knees than stepping forward.",
+    fault:"Too short a step, which shoves the front knee past the toes. <b>Take a bigger step back</b> and let the back knee travel down, not the front knee forward."},
+  carry:{name:"Farmer / suitcase carry",kit:"Kettlebell",
+    setup:"One bell in each hand, or one bell in one hand — that's a suitcase carry, harder and better for your core.",
+    doIt:"Stand tall, shoulders back and down, ribs pulled towards your hips, core braced like you're about to be poked in the stomach. <b>Walk normally.</b> Down the hall and back is fine.",
+    fault:"Leaning away from the weight on a single-arm carry. <b>Stay perfectly upright</b> — resisting the lean is the entire exercise."},
+  pushRed:{name:"Push-up board — red (chest)",kit:"Board",
+    setup:"Hands in the red slots, roughly at the width where your forearms end up vertical at the bottom.",
+    doIt:"One straight line from ear to heel — <b>squeeze your glutes</b>, that's the trick. Elbows travel back at about 45° from your body. Lower until your chest is just above the board, then press.",
+    fault:"Hips sagging or bum in the air. If you can't hold the line, <b>drop to your knees</b> — full range on your knees beats half a rep on your toes."},
+  pushBlue:{name:"Push-up board — blue (triceps)",kit:"Board",
+    setup:"Hands in the narrow blue slots, close together under your chest.",
+    doIt:"Elbows track <b>straight back along your ribs</b>, not out to the sides. Expect noticeably fewer reps here than red — that's normal, the triceps are doing it alone.",
+    fault:"Letting the elbows flare out to escape the difficulty. That just turns it back into a chest push-up."},
+  pushYellow:{name:"Push-up board — yellow (shoulders)",kit:"Board",
+    setup:"Hands in the yellow slots, forward of your shoulders, hips piked up a little so the weight shifts onto your shoulders.",
+    doIt:"Lower with your head travelling forward of your hands. The more you pike the hips, the more shoulder and the less chest. <b>Keep the neck long</b> — don't crane it.",
+    fault:"Flattening back into a normal push-up as you tire. If you can't hold the pike, cut the reps rather than the angle."},
+  pushGreen:{name:"Push-up board — green (wide / back)",kit:"Board",
+    setup:"The widest grip on the board, in the green slots.",
+    doIt:"Elbows flare out more here, and at the bottom you should feel your <b>shoulder blades pull together</b>. Shorter range than the others — don't force depth.",
+    fault:"Going too deep and letting the shoulders roll forward. Stop when your chest is a fist above the board."},
+  dips:{name:"Chair dips",kit:"Chair",
+    setup:"Hands on the front edge of a solid chair behind you, fingers forward. Heels out in front, legs straight for harder, bent for easier.",
+    doIt:"Lower by <b>bending the elbows straight back</b>, keeping your back grazing the chair. Stop when your upper arms are parallel to the floor. Press back up without locking out hard.",
+    fault:"Shoulders rolling forward and up by your ears at the bottom. That's the position that hurts shoulders — <b>chest up, shoulders down, less depth</b>."},
+  floorpress:{name:"Floor press",kit:"Kettlebell",
+    setup:"Lie on your back, knees bent, bell pressed up over your shoulder with the wrist straight.",
+    doIt:"Lower until your <b>triceps touch the floor</b>, pause for a beat with the elbow at about 45° from your body, then press back up. The floor is the depth limit — that's what makes it shoulder-friendly.",
+    fault:"Bouncing the elbow off the floor to get momentum. <b>Pause every rep</b>, it's the whole point of the movement."},
+  burpee:{name:"Burpee",kit:"Bodyweight",
+    setup:"Standing, room to drop in front of you.",
+    doIt:"Hands down, jump or step the feet back to a plank, chest to the floor, back up, feet in, stand. <b>Stepping instead of jumping is a legitimate version</b> and lets you keep going far longer.",
+    fault:"Letting the hips sag as you hit the floor. Keep the plank line — if it's gone, step the feet in and out instead of jumping them."},
+  plank:{name:"Plank on the board handles",kit:"Board",
+    setup:"Hands on the board handles, arms straight, feet hip-width behind you.",
+    doIt:"One straight line ear to heel. <b>Squeeze glutes and quads hard</b>, tuck the ribs down, and breathe normally through the whole hold.",
+    fault:"Hips sagging, or holding your breath. If the hips drop the set is over — stop the clock and rest."},
+  hollow:{name:"Hollow hold",kit:"Floor",
+    setup:"Lie on your back, arms overhead, legs straight.",
+    doIt:"Press your <b>lower back flat into the floor</b> and keep it there. Lift shoulders and legs a few inches. That flat-back contact is the whole exercise.",
+    fault:"Lower back arching off the floor. The instant it lifts, <b>bend your knees or raise your legs higher</b> until you can hold contact again."},
+  complex:{name:"Kettlebell complex",kit:"Kettlebell",
+    setup:"One bell, one hand. You do all four movements without putting it down: clean, press, front squat, swing.",
+    doIt:"That sequence is one rep. Complete all reps on one side, <b>then swap without resting</b>. Pick a bell you could press comfortably for ten — the press is always the weak link in a complex.",
+    fault:"Going too heavy and failing the press halfway through. Choose the bell for the <b>hardest</b> movement in the chain, not the easiest."}
+};
+
+/* ---------- programme ---------- */
+const SCHEDULE = {1:"A",2:"B",4:"C",5:"D",6:"E"};   // Mon Tue Thu Fri Sat
+const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+const SESSIONS = {
+  A:{name:"Swing", tag:"Hinge & push", day:"Monday", warm:"3 min rope · 20 halos · 10 hip hinges",
+    work:[
+      {n:"Two-hand swing",sets:5,d:"15",cue:"swing",core:true},
+      {n:"Goblet squat",sets:4,d:"12",cue:"goblet",core:true},
+      {n:"Push-up board — red (chest)",sets:4,d:"max",cue:"pushRed",core:true},
+      {n:"Push-up board — blue (triceps)",sets:3,d:"max",cue:"pushBlue"},
+      {n:"Plank on the handles",sets:3,d:"45s",cue:"plank"}],
+    fin:"3 × 60s rope, fast",
+    blurb:"Heavy and slow. Rest 90s between sets — you should be able to speak, not sing."},
+  B:{name:"Wind", tag:"Conditioning", day:"Tuesday", warm:"2 min easy rope · 20 halos",
+    work:[
+      {n:"Rope intervals",sets:5,d:"90s hard / 45s easy",cue:"rope",core:true},
+      {n:"Clean & press",sets:5,d:"6 each side",cue:"cleanpress",core:true},
+      {n:"High pull",sets:4,d:"10 each side",cue:"highpull",core:true},
+      {n:"Burpees",sets:4,d:"10",cue:"burpee"},
+      {n:"Hollow hold",sets:3,d:"30s",cue:"hollow"}],
+    fin:"2 × 60s rope, all out",
+    blurb:"The one that makes you fit. If you're not breathing hard by interval three, go faster."},
+  C:{name:"Pull", tag:"Back & legs", day:"Thursday", warm:"3 min rope · 10 hip hinges · 10 glute bridges",
+    work:[
+      {n:"Single-arm row",sets:4,d:"10 each side",cue:"row",core:true},
+      {n:"Romanian deadlift",sets:4,d:"12",cue:"rdl",core:true},
+      {n:"Racked reverse lunge",sets:3,d:"10 each leg",cue:"lunge",core:true},
+      {n:"Push-up board — green (wide)",sets:3,d:"max",cue:"pushGreen"},
+      {n:"Suitcase carry",sets:4,d:"40 steps each side",cue:"carry"}],
+    fin:"EMOM 5 × 10 swings",
+    blurb:"The carry is the point. Walk tall, ribs down, don't put the bell down mid-length."},
+  D:{name:"Press", tag:"Push volume", day:"Friday", warm:"3 min rope · 20 halos · 10 scapular push-ups",
+    work:[
+      {n:"Board circuit — red, blue, yellow, green",sets:4,d:"8 each colour",cue:"pushRed",core:true},
+      {n:"Strict overhead press",sets:5,d:"5 each side",cue:"press",core:true},
+      {n:"Floor press",sets:4,d:"10 each side",cue:"floorpress",core:true},
+      {n:"Chair dips",sets:3,d:"max",cue:"dips"},
+      {n:"Hollow hold",sets:3,d:"30s",cue:"hollow"}],
+    fin:"100 skips, unbroken",
+    blurb:"All four colours back to back is one round. Drop to your knees rather than break form."},
+  E:{name:"Grinder", tag:"Long piece", day:"Saturday", warm:"5 min rope, building",
+    work:[
+      {n:"Complex — clean, press, squat, swing",sets:5,d:"5 each side",cue:"complex",core:true},
+      {n:"EMOM 12 min — odd 10 swings, even 8 push-ups",sets:12,d:"1 min each",cue:"swing",core:true},
+      {n:"Farmer carry",sets:5,d:"40 steps",cue:"carry"}],
+    fin:"3 × 60s rope",
+    blurb:"The long one, and the reason Saturday is a training day. Nowhere to hide in a complex."}
+};
+
+const PHASES = [
+  {weeks:"Weeks 1–2",label:"Groove",note:"Base volume. Learn the hinge, own the positions, finish every session wanting one more set."},
+  {weeks:"Weeks 3–4",label:"Build", note:"One extra set on every core movement. Same reps, more work — this is where most people quietly stop."},
+  {weeks:"Weeks 5–6",label:"Load",  note:"Extra set stays, and the bell goes up on squats, deadlifts and rows if the last set still feels easy."},
+  {weeks:"Weeks 7–8",label:"Peak",  note:"Two extra sets on the core movements and rest cut to 60s. Then take three easy days and start the block again heavier."}
+];
+function phaseFor(w){ if(w<=2) return {i:0,add:0}; if(w<=4) return {i:1,add:1}; if(w<=6) return {i:2,add:1}; return {i:3,add:2}; }
+
+const EXCUSES = ["Too tired after work","Got home late","Still sore","Couldn't be bothered",
+  "Away from home","Feeling ill","Forgot"];
+
+/* ---------- the house ----------
+   A clock, not a streak: each job carries the interval you intend to hold to,
+   and the ledger reports how long it has actually been. */
+const DEFAULT_CHORES = [
+  {id:"washing",  name:"Washing taken down",                  every:3},
+  {id:"clothes",  name:"Clothes put away, not on the chair",  every:2},
+  {id:"tidy",     name:"Room tidy — floor clear",             every:3},
+  {id:"bin",      name:"Bin emptied",                         every:7},
+  {id:"surfaces", name:"Desk and surfaces wiped",             every:7},
+  {id:"hoover",   name:"Room hoovered",                       every:7},
+  {id:"bedding",  name:"Bedding changed",                     every:14}
+];
+
+/* ---------- dates (local, never UTC) ---------- */
+function key(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function parseKey(k){ const p=k.split("-").map(Number); return new Date(p[0],p[1]-1,p[2]); }
+function addDays(d,n){ const c=new Date(d.getFullYear(),d.getMonth(),d.getDate()); c.setDate(c.getDate()+n); return c; }
+function daysBetween(a,b){ return Math.round((parseKey(b)-parseKey(a))/86400000); }
+function isScheduled(d){ return SCHEDULE[d.getDay()] !== undefined; }
+function sessionOn(d){ return SCHEDULE[d.getDay()]; }
+function isWorkday(d){ const g=d.getDay(); return g>=1 && g<=5; }
+
+let TODAY = new Date(), TODAY_K = key(TODAY);
+let NOW_H = TODAY.getHours() + TODAY.getMinutes()/60;
+
+/* ---------- state ---------- */
+const BLANK = {start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null};
+const LS_KEY = "iron-ledger-v2";
+let state = JSON.parse(JSON.stringify(BLANK));
+let db = null, docRef = null, expressMode = false;
+
+function loadLocal(){
+  try{ const raw = localStorage.getItem(LS_KEY);
+    if(raw) return Object.assign(JSON.parse(JSON.stringify(BLANK)), JSON.parse(raw)); }catch(e){}
+  return null;
+}
+function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+function setSync(m){ const el=document.getElementById("sync-state"); if(el) el.textContent=m; }
+function save(){
+  saveLocal();
+  if(docRef) docRef.set(state).catch(function(e){
+    setSync("Saved on this device only — the shared record refused the write ("+e.code+").");
+  });
+}
+
+/* ---------- derived ---------- */
+function weekNumber(){ return Math.max(1, Math.floor(daysBetween(state.start, TODAY_K)/7) + 1); }
+function setsFor(w, week){ return w.core ? w.sets + phaseFor(week).add : w.sets; }
+function workFor(sk, express){
+  const s = SESSIONS[sk];
+  return express ? s.work.filter(function(w){ return w.core; }) : s.work;
+}
+function minutesFor(sk, week, express){
+  const s = SESSIONS[sk];
+  let sets = 0;
+  workFor(sk, express).forEach(function(w){
+    sets += express ? Math.max(2, Math.ceil(setsFor(w,week)/2)) : setsFor(w,week);
+  });
+  return Math.round(sets*1.15 + (express ? 2 : 5) + (express ? 0 : 3));
+}
+function currentStreak(){
+  let n=0, d=new Date(TODAY);
+  if(isScheduled(d) && !state.done[key(d)]) d = addDays(d,-1);
+  const floor = parseKey(state.start);
+  while(d >= floor){
+    if(isScheduled(d)){ if(state.done[key(d)]) n++; else break; }
+    d = addDays(d,-1);
+  }
+  return n;
+}
+function missedDays(){
+  const out=[]; let d = parseKey(state.start);
+  while(key(d) < TODAY_K){ if(isScheduled(d) && !state.done[key(d)]) out.push(key(d)); d = addDays(d,1); }
+  return out;
+}
+function lastSession(){ const ks = Object.keys(state.done).sort(); return ks.length ? ks[ks.length-1] : null; }
+function sessionsThisWeek(){
+  const dow = (TODAY.getDay()+6)%7, mon = addDays(TODAY,-dow);
+  let n=0; for(let i=0;i<7;i++) if(state.done[key(addDays(mon,i))]) n++;
+  return n;
+}
+function expressRate(){
+  const ks = Object.keys(state.done).sort().slice(-10);
+  if(ks.length < 4) return null;
+  return {of:ks.length, ex:ks.filter(function(k){ return state.done[k].express; }).length};
+}
+function excuseTally(){
+  const m = new Map();
+  state.skips.forEach(function(s){
+    const e = m.get(s.reason) || {n:0,last:s.date};
+    e.n++; if(s.date > e.last) e.last = s.date;
+    m.set(s.reason, e);
+  });
+  return [...m.entries()].map(function(p){ return {reason:p[0], n:p[1].n, last:p[1].last}; })
+    .sort(function(a,b){ return b.n-a.n; });
+}
+function topExcuse(){ const t = excuseTally(); return t.length ? t[0] : null; }
+
+/* ---------- house helpers ---------- */
+function choreList(){
+  if(!Array.isArray(state.chores)){
+    state.chores = DEFAULT_CHORES.map(function(c){
+      return {id:c.id, name:c.name, every:c.every, last:null};
+    });
+  }
+  return state.chores;
+}
+function choreById(id){
+  const l = choreList();
+  for(let i=0;i<l.length;i++) if(l[i].id === id) return l[i];
+  return null;
+}
+function choreAge(c){ return c.last ? daysBetween(c.last, TODAY_K) : null; }
+/* Never-done sorts above everything so it can't hide at the bottom of the list. */
+function choreOver(c){ const a = choreAge(c); return a === null ? 9999 : a - c.every; }
+function choreState(c){ const o = choreOver(c); return o > 0 ? "over" : (o === 0 ? "due" : "ok"); }
+function choresOverdue(){ return choreList().filter(function(c){ return choreOver(c) > 0; }); }
+function choresSorted(){ return choreList().slice().sort(function(a,b){ return choreOver(b) - choreOver(a); }); }
+function ageText(c){
+  const a = choreAge(c);
+  if(a === null) return "never done";
+  if(a === 0) return "done today";
+  if(a === 1) return "1 day ago";
+  return a + " days ago";
+}
+function plural(n, w){ return n + " " + w + (n === 1 ? "" : "s"); }
+function nextDue(){ for(let i=1;i<=7;i++){ const d=addDays(TODAY,i); if(isScheduled(d)) return d; } return null; }
+function nextDueText(bare){
+  const d = nextDue(); if(!d) return "—";
+  const at = isWorkday(d) ? fmtH(DAY.slot) : fmtH(DAY.weekendSlot);
+  const label = DAY_NAMES[d.getDay()]+" "+at+" — "+SESSIONS[sessionOn(d)].name;
+  return bare ? label : "next up is "+label;
+}
+function dayPhase(){
+  if(!isWorkday(TODAY)) return NOW_H < DAY.weekendSlot ? "weekendEarly" : "weekend";
+  if(NOW_H < DAY.workStart) return "preWork";
+  if(NOW_H < DAY.workEnd)   return "atWork";
+  if(NOW_H < DAY.home)      return "commute";
+  if(NOW_H < 20)            return "window";
+  if(NOW_H < DAY.lastStart) return "late";
+  if(NOW_H < 23.5)          return "lastCall";
+  return "over";
+}
+function minsLeftTonight(){ return Math.max(0, Math.round((DAY.lastStart - NOW_H)*60)); }
+
+/* ---------- the nag ---------- */
+function verdict(){
+  const doneToday = !!state.done[TODAY_K];
+  const schedToday = isScheduled(TODAY);
+  const missed = missedDays();
+  const last = lastSession();
+  const gap = last ? daysBetween(last, TODAY_K) : null;
+  const total = Object.keys(state.done).length;
+  const streak = currentStreak();
+  const top = topExcuse();
+  const week = weekNumber();
+  const phase = dayPhase();
+  const sk = sessionOn(TODAY);
+  const s = sk ? SESSIONS[sk] : null;
+  const mins = sk ? minutesFor(sk, week, false) : 0;
+  const exMins = sk ? minutesFor(sk, week, true) : 0;
+
+  if(doneToday){
+    const rec = state.done[TODAY_K], er = expressRate();
+    return {sev:"ok", eyebrow: rec.express ? "Logged — short version" : "Logged",
+      line: SESSIONS[rec.key].name+" done. That's "+streak+" in a row.",
+      sub: (er && er.ex >= Math.ceil(er.of*0.6))
+        ? "<b>"+er.ex+" of your last "+er.of+" were the short version.</b> It counts, and it's kept the streak alive — but the full session is what actually changes your shape. Do the whole thing next time. "+nextDueText()+"."
+        : "Eat something with protein in the next hour and get to bed at a sensible time. "+nextDueText()+"."};
+  }
+
+  if(total === 0 && missed.length === 0){
+    return {sev:"warn", eyebrow:"Nothing logged",
+      line: schedToday ? "Day one is tonight — "+s.name+", "+mins+" minutes." : "Nothing logged yet. First session is "+nextDueText(true)+".",
+      sub:"Your slot is <b>"+fmtH(DAY.slot)+"</b>, half an hour after you get through the door. Read the form guide below now, while you're sat down."};
+  }
+
+  if(gap !== null && gap >= 7){
+    return {sev:"grim", eyebrow:gap+" days since you trained",
+      line: gap+" days. Your best run was "+state.longest+" sessions.",
+      sub: top
+        ? "You gave it up for <b>“"+top.reason+"”</b> — the reason you've now used <b>"+top.n+" time"+(top.n===1?"":"s")+"</b>. "+(schedToday ? "Tonight is "+s.name+". Take the "+exMins+"-minute short version if the full one feels like too much" : "Next is "+nextDueText(true))+" — the first session back is always the worst one, and it's the only one that matters."
+        : "You didn't even name a reason, you just stopped. "+(schedToday ? "Tonight is "+s.name : "Next is "+nextDueText(true))+". Start again — the first session back is always the worst one."};
+  }
+
+  if(missed.length >= 2){
+    const names = missed.slice(-3).map(function(k){ return DAY_NAMES[parseKey(k).getDay()]; }).join(", ");
+    return {sev:"bad", eyebrow:missed.length+" sessions missed",
+      line:"You're not resting. You're stopping.",
+      sub:"Empty scheduled days: <b>"+names+"</b>. "+(top ? "Most common reason: <b>“"+top.reason+"”</b> ("+top.n+"×). " : "")
+        +(schedToday ? "Tonight is scheduled — break the run here, even if it's only the "+exMins+"-minute version." : "Next is "+nextDueText(true)+".")};
+  }
+
+  if(missed.length === 1){
+    return {sev:"warn", eyebrow:"One missed",
+      line:"You skipped "+DAY_NAMES[parseKey(missed[0]).getDay()]+". One is a blip.",
+      sub:"Miss the next one and it's a pattern — and patterns are exactly what you said you don't have the discipline to break. "
+        +(schedToday ? "Tonight: <b>"+s.name+", "+mins+" minutes, from "+fmtH(DAY.slot)+"</b>." : "Next is "+nextDueText(true)+".")};
+  }
+
+  if(!schedToday){
+    return {sev:"ok", eyebrow:"Rest day",
+      line:"No session today. Next is "+nextDueText(true)+".",
+      sub: streak > 0
+        ? "<b>"+streak+" in a row</b> going in. Rest days are part of the programme, not a negotiation — walk somewhere at lunch, sleep properly, eat like someone who trains."
+        : "Rest days only count as rest if you actually trained. Check the grid below."};
+  }
+
+  const streakLine = streak > 0 ? " You're <b>"+streak+" deep</b>; this is the one that keeps it." : "";
+  const warn = {sev:"warn", eyebrow:"Due tonight"};
+
+  switch(phase){
+    case "preWork":
+      return Object.assign({},warn,{line:s.name+" tonight. "+mins+" minutes, from "+fmtH(DAY.slot)+".",
+        sub:"Decided now, not at six. Leave the bell and the rope somewhere you'll trip over them when you walk in."+streakLine});
+    case "atWork":
+      return Object.assign({},warn,{line:s.name+" at "+fmtH(DAY.slot)+". "+mins+" minutes.",
+        sub:"You're at work, so there's nothing to do about it yet — which is exactly why there's nothing to negotiate either. Home at "+fmtH(DAY.home)+", changed by "+fmtH(DAY.slot)+", finished by "+fmtH(DAY.slot+mins/60)+"."+streakLine});
+    case "commute":
+      return Object.assign({},warn,{line:"Kit on before you sit down.",
+        sub:"This is the hour it gets lost in. Once you're on the sofa with your shoes on, "+s.name+" isn't happening. <b>Change first, eat after.</b> "+mins+" minutes and you're done by "+fmtH(DAY.slot+mins/60)+"."+streakLine});
+    case "window":
+      return Object.assign({},warn,{line:"It's "+fmtH(NOW_H)+". This is the window.",
+        sub:s.name+" — "+mins+" minutes. You're not tired, you're seated. Stand up, put the rope on the floor, start the warm-up."+streakLine});
+    case "late":
+      return {sev:"bad", eyebrow:minsLeftTonight()+" minutes left", line:"It's "+fmtH(NOW_H)+" and "+s.name+" isn't done.",
+        sub:"You've talked yourself right to the edge of the evening. The full session is "+mins+" minutes — but the <b>"+exMins+"-minute short version</b> is below, and it keeps the streak alive. Take that deal."};
+    case "lastCall":
+      return {sev:"bad", eyebrow:"Last call", line:"You have minutes, not hours.",
+        sub:"Too late to train properly, too early to pretend it's tomorrow's problem. <b>"+exMins+" minutes</b> for the short version. If you genuinely can't, log the skip and name it — don't just close the tab."};
+    case "over":
+      return {sev:"grim", eyebrow:"Day gone", line:s.name+" didn't happen.",
+        sub:"Log the skip and name it, so tomorrow's version of you has to look at it. "+(top ? "You've reached for <b>“"+top.reason+"”</b> "+top.n+" times already." : "")};
+    case "weekendEarly":
+      return Object.assign({},warn,{line:s.name+" today. "+mins+" minutes.",
+        sub:"No work today, so no work excuse either. Slot's <b>"+fmtH(DAY.weekendSlot)+"</b> — do it before the day fills up with other things."+streakLine});
+    default:
+      return Object.assign({},warn,{line:s.name+". Not done.",
+        sub:mins+" minutes, and the kit is in your house."+streakLine});
+  }
+}
+
+/* ---------- rendering ---------- */
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
+
+function renderMasthead(){
+  document.getElementById("m-date").textContent =
+    TODAY.toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"}).toUpperCase();
+  const w = weekNumber();
+  document.getElementById("m-week").textContent = "WEEK "+w+" · "+PHASES[phaseFor(w).i].label.toUpperCase();
+  const sk = sessionOn(TODAY);
+  document.getElementById("m-slot").textContent = sk
+    ? "SLOT "+(isWorkday(TODAY)?fmtH(DAY.slot):fmtH(DAY.weekendSlot))+" · "+minutesFor(sk,w,false)+" MIN"
+    : "REST DAY";
+}
+
+function renderClock(){
+  const host = document.getElementById("clock");
+  const sk = sessionOn(TODAY), week = weekNumber(), phase = dayPhase();
+  let slots;
+  if(!isWorkday(TODAY)){
+    slots = sk ? [
+      {t:"Morning", l:"Eat, coffee, no rush.", p:["weekendEarly"]},
+      {t:fmtH(DAY.weekendSlot), l:SESSIONS[sk].name+" — "+minutesFor(sk,week,false)+" min", p:["weekend"]},
+      {t:"Afternoon", l:"Rest of the day is yours.", p:[]},
+      {t:"Evening", l:"Sleep is training too.", p:[]}
+    ] : [
+      {t:"All day", l:"No session scheduled.", p:["weekendEarly","weekend"]},
+      {t:"Do", l:"A 30-minute walk.", p:[]},
+      {t:"Eat", l:"Protein at every meal.", p:[]},
+      {t:"Sleep", l:"Eight hours, ideally.", p:[]}
+    ];
+  } else {
+    const mins = sk ? minutesFor(sk,week,false) : 0;
+    slots = [
+      {t:fmtH(DAY.workStart)+"–"+fmtH(DAY.workEnd), l:"At work. Nothing to decide.", p:["preWork","atWork"]},
+      {t:fmtH(DAY.workEnd)+"–"+fmtH(DAY.home), l:"Commute. Kit out before you sit down.", p:["commute"]},
+      {t:fmtH(DAY.slot), l: sk ? SESSIONS[sk].name+" — "+mins+" min" : "No session. Walk instead.", p:["window"]},
+      {t:fmtH(DAY.slot+mins/60)+"+", l: sk ? "Eat, shower, log it." : "Rest day earned.", p:["late","lastCall","over"]}
+    ];
+  }
+  const nowIdx = slots.findIndex(function(s){ return s.p.indexOf(phase) > -1; });
+  host.innerHTML = slots.map(function(s,i){
+    return '<div class="slot"'+(i===nowIdx?' data-now="1"':"")+(nowIdx>-1 && i<nowIdx?' data-past="1"':"")+'>'
+      +'<span class="slot-t">'+s.t+'</span><span class="slot-l">'+s.l+'</span></div>';
+  }).join("");
+}
+
+function renderVerdict(){
+  const v = verdict();
+  document.getElementById("verdict").dataset.sev = v.sev;
+  document.getElementById("v-eyebrow").textContent = v.eyebrow.toUpperCase();
+  document.getElementById("v-line").textContent = v.line;
+  document.getElementById("v-sub").innerHTML = v.sub;
+}
+
+function renderFigs(){
+  const streak = currentStreak(), last = lastSession();
+  const gap = last ? daysBetween(last, TODAY_K) : null;
+  const missed = missedDays().length, total = Object.keys(state.done).length;
+  const wk = sessionsThisWeek();
+  const items = [
+    {k:"Current streak", v:streak, u:streak===1?"session":"sessions", f:streak>=4?"good":null},
+    {k:"Longest ever",   v:state.longest, u:"sessions"},
+    {k:"Days since",     v:gap===null?"—":gap, u:gap===null?"never trained":"days", f:(gap!==null&&gap>=4)?"bad":null},
+    {k:"This week",      v:wk+"/5", u:"done", f:wk>=5?"good":null},
+    {k:"Missed",         v:missed, u:"scheduled", f:missed>0?"bad":null},
+    {k:"Jobs behind",    v:choresOverdue().length, u:"of "+choreList().length,
+      f:choresOverdue().length > 0 ? "bad" : "good"}
+  ];
+  document.getElementById("figs").innerHTML = items.map(function(i){
+    return '<div class="fig"'+(i.f?' data-flag="'+i.f+'"':"")+'>'
+      +'<span class="k">'+i.k+'</span><span class="n">'+i.v+' <small>'+i.u+'</small></span></div>';
+  }).join("");
+}
+
+function cueHTML(id){
+  const c = CUES[id]; if(!c) return "";
+  return '<div class="cue-row"><span class="cue-k">Set up</span><p class="cue-v">'+c.setup+'</p></div>'
+    +'<div class="cue-row"><span class="cue-k">Do it</span><p class="cue-v">'+c.doIt+'</p></div>'
+    +'<div class="cue-row" data-fault="1"><span class="cue-k">Watch for</span><p class="cue-v">'+c.fault+'</p></div>';
+}
+
+function renderSession(){
+  const host = document.getElementById("session"), note = document.getElementById("today-note");
+  const sk = sessionOn(TODAY), week = weekNumber(), phase = dayPhase();
+
+  if(!sk){
+    const d = nextDue(), s = SESSIONS[sessionOn(d)];
+    note.textContent = "Recovery day.";
+    host.innerHTML = '<div class="sess-top"><div><h3 class="sess-title">Rest</h3>'
+      +'<p class="sess-sub">Next — '+DAY_NAMES[d.getDay()]+' '+(isWorkday(d)?fmtH(DAY.slot):fmtH(DAY.weekendSlot))+' · '+s.name+'</p></div>'
+      +'<span class="chip" data-v="rest">No session</span></div>'
+      +'<div class="strip"><b>Still do</b><span>A 20–30 minute walk — a lap at lunch counts. Eight hours in bed. Enough protein that '+DAY_NAMES[d.getDay()]+" doesn't hurt.</span></div>";
+    return;
+  }
+
+  const s = SESSIONS[sk];
+  const done = !!state.done[TODAY_K];
+  const ticked = state.ticks[TODAY_K] || [];
+  const list = workFor(sk, expressMode);
+  const mins = minutesFor(sk, week, expressMode);
+  const exMins = minutesFor(sk, week, true);
+  const fullMins = minutesFor(sk, week, false);
+  const lateish = ["late","lastCall","over"].indexOf(phase) > -1;
+
+  const rows = list.map(function(w){
+    const idx = s.work.indexOf(w);
+    const sets = expressMode ? Math.max(2, Math.ceil(setsFor(w,week)/2)) : setsFor(w,week);
+    const on = ticked.indexOf(idx) > -1;
+    return '<li><div class="lift" role="checkbox" tabindex="0" aria-checked="'+on+'" data-i="'+idx+'">'
+      +'<span class="tick"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8.5 6 12.5 14 3.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+      +'<span class="lift-n">'+w.n+'</span>'
+      +'<span class="lift-d">'+sets+' × '+w.d+'</span>'
+      +'<button class="how" type="button" data-cue="'+idx+'" aria-expanded="false" aria-controls="cue-'+idx+'">How</button>'
+      +'</div><div class="cue" id="cue-'+idx+'" hidden>'+cueHTML(w.cue)+'</div></li>';
+  }).join("");
+
+  note.textContent = "Week "+week+" · "+PHASES[phaseFor(week).i].label+" · ~"+mins+" min";
+
+  host.innerHTML =
+    '<div class="sess-top"><div><h3 class="sess-title">Session '+sk+' — '+s.name+'</h3>'
+      +'<p class="sess-sub">'+s.tag+' · ~'+mins+' min</p></div>'
+      +'<span class="chip" data-v="'+(done?"done":"due")+'">'
+      +(done ? "Complete" : expressMode ? "Short version" : "Due "+(isWorkday(TODAY)?fmtH(DAY.slot):fmtH(DAY.weekendSlot)))+'</span></div>'
+    +'<div class="strip"><b>Warm-up</b><span>'+(expressMode ? "2 min rope, straight in" : s.warm)+'</span></div>'
+    +'<ul class="lifts">'+rows+'</ul>'
+    +'<div class="strip"><b>Finisher</b><span>'+(expressMode ? "Skipped — that's the deal with the short version." : s.fin)+'</span></div>'
+    +(!done && (lateish || expressMode)
+      ? '<div class="express-bar">'+(expressMode
+          ? '<span class="express-note">SHORT VERSION</span><strong>Core movements only, half the sets, no finisher — about '+exMins+' minutes.</strong> It counts and it keeps the streak. Marked on the grid so you can see how often you take it. '
+            +'<button class="btn btn-ghost" type="button" id="ex-off">Do the full session</button>'
+          : '<span class="express-note">'+minsLeftTonight()+' MIN LEFT</span><strong>Too late for the full '+fullMins+' minutes?</strong> Take the '+exMins+'-minute version instead of nothing. '
+            +'<button class="btn btn-primary" type="button" id="ex-on">Show the short version</button>')+'</div>'
+      : "")
+    +'<div class="actions">'
+      +'<button class="btn '+(done?"btn-done":"btn-primary")+'" type="button" id="log-btn">'+(done?"Session logged ✓":"Mark session done")+'</button>'
+      +(done ? '<button class="btn btn-ghost" type="button" id="undo-btn">Undo</button>'
+             : '<button class="btn btn-ghost" type="button" id="skip-btn">I\'m skipping tonight</button>')
+      +'<span class="act-note" id="tick-note">'+ticked.length+'/'+list.length+' ticked</span></div>'
+    +'<div class="excuse" id="excuse-panel" hidden><p class="excuse-q">Name it. It goes in the ledger.</p>'
+      +'<div class="excuse-opts">'+EXCUSES.map(function(e){
+          const prev = state.skips.filter(function(x){ return x.reason === e; }).length;
+          return '<button class="excuse-opt" type="button" data-reason="'+esc(e)+'">'+e
+            +(prev ? ' <span class="excuse-n">×'+prev+'</span>' : "")+'</button>';
+        }).join("")+'</div>'
+      +'<button class="btn btn-ghost" type="button" id="ex-cancel" style="align-self:flex-start">Actually, I\'ll train</button></div>';
+
+  wireSession(list.length);
+}
+
+function wireSession(count){
+  document.querySelectorAll(".lift").forEach(function(b){
+    function toggle(){
+      const i = Number(b.dataset.i);
+      const cur = state.ticks[TODAY_K] ? state.ticks[TODAY_K].slice() : [];
+      const at = cur.indexOf(i);
+      if(at >= 0) cur.splice(at,1); else cur.push(i);
+      state.ticks[TODAY_K] = cur;
+      b.setAttribute("aria-checked", String(at < 0));
+      document.getElementById("tick-note").textContent = cur.length+"/"+count+" ticked";
+      save();
+    }
+    b.addEventListener("click", function(e){ if(e.target.closest(".how")) return; toggle(); });
+    b.addEventListener("keydown", function(e){
+      if(e.target.closest(".how")) return;
+      if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggle(); }
+    });
+  });
+
+  document.querySelectorAll(".how").forEach(function(btn){
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      const panel = document.getElementById("cue-"+btn.dataset.cue);
+      const open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", String(open));
+      btn.textContent = open ? "Hide" : "How";
+    });
+  });
+
+  const on = document.getElementById("ex-on");
+  if(on) on.addEventListener("click", function(){ expressMode = true; renderSession(); });
+  const off = document.getElementById("ex-off");
+  if(off) off.addEventListener("click", function(){ expressMode = false; renderSession(); });
+
+  const logBtn = document.getElementById("log-btn");
+  if(logBtn) logBtn.addEventListener("click", function(){
+    if(state.done[TODAY_K]) return;
+    logSession(TODAY_K, sessionOn(TODAY), expressMode);
+  });
+
+  const undo = document.getElementById("undo-btn");
+  if(undo) undo.addEventListener("click", function(){ delete state.done[TODAY_K]; save(); renderAll(); });
+
+  const skip = document.getElementById("skip-btn"), panel = document.getElementById("excuse-panel");
+  if(skip) skip.addEventListener("click", function(){
+    panel.hidden = false; skip.hidden = true;
+    panel.scrollIntoView({behavior:"smooth", block:"nearest"});
+  });
+  const cancel = document.getElementById("ex-cancel");
+  if(cancel) cancel.addEventListener("click", function(){ panel.hidden = true; if(skip) skip.hidden = false; });
+
+  document.querySelectorAll(".excuse-opt").forEach(function(b){
+    b.addEventListener("click", function(){
+      state.skips.push({date:TODAY_K, key:sessionOn(TODAY), reason:b.dataset.reason});
+      save(); renderAll();
+    });
+  });
+}
+
+function logSession(k, sk, express){
+  state.done[k] = {key:sk, at:new Date().toISOString(), express:!!express};
+  state.skips = state.skips.filter(function(s){ return s.date !== k; });
+  const st = currentStreak();
+  if(st > state.longest) state.longest = st;
+  expressMode = false;
+  save(); renderAll();
+}
+
+function renderCal(){
+  const cal = document.getElementById("cal"), WEEKS = 12;
+  const dow = (TODAY.getDay()+6)%7;
+  const first = addDays(addDays(TODAY,-dow), -7*(WEEKS-1));
+  let html = "";
+  for(let w=0; w<WEEKS; w++){
+    for(let dy=0; dy<7; dy++){
+      const d = addDays(first, w*7+dy), k = key(d);
+      const sched = isScheduled(d), rec = state.done[k];
+      let st;
+      if(rec) st = rec.express ? "express" : "done";
+      else if(k > TODAY_K) st = sched ? "sched" : "none";
+      else if(k === TODAY_K) st = sched ? "due" : "rest";
+      else if(k < state.start) st = "none";
+      else if(sched) st = "miss";
+      else st = "rest";
+      const clickable = sched && k <= TODAY_K && k >= state.start;
+      const label = d.toLocaleDateString(undefined,{day:"numeric",month:"short"})+" — "
+        +(sched ? SESSIONS[sessionOn(d)].name : "rest")
+        +(rec ? (rec.express ? " · short version" : " · done") : "");
+      html += '<button class="cell" type="button" data-s="'+st+'" data-k="'+k+'"'
+        +(clickable ? ' data-click="1"' : " disabled")
+        +' title="'+esc(label)+'" aria-label="'+esc(label)+'"></button>';
+    }
+  }
+  cal.innerHTML = html;
+  cal.querySelectorAll('[data-click="1"]').forEach(function(c){
+    c.addEventListener("click", function(){
+      const k = c.dataset.k;
+      if(state.done[k]) delete state.done[k];
+      else state.done[k] = {key:sessionOn(parseKey(k)), at:new Date().toISOString(), backfilled:true};
+      const st = currentStreak();
+      if(st > state.longest) state.longest = st;
+      save(); renderAll();
+    });
+  });
+}
+
+function renderLedger(){
+  const host = document.getElementById("ledger"), tally = excuseTally();
+  if(!tally.length){
+    host.innerHTML = '<p class="empty">Nothing filed yet. When you skip a scheduled session this makes you pick a reason, and it keeps the count here where you can see it. That\'s the whole mechanism — a skip you have to name is much harder to take than one you can close the tab on.</p>';
+    return;
+  }
+  const max = tally[0].n, total = tally.reduce(function(a,b){ return a+b.n; },0);
+  host.innerHTML = '<div class="lrows">'+tally.map(function(t){
+      return '<div class="lrow"><span class="lrow-n">'+t.reason
+        +' <span class="lrow-last">last '+parseKey(t.last).toLocaleDateString(undefined,{day:"numeric",month:"short"})+'</span></span>'
+        +'<span class="lrow-bar" style="width:'+Math.max(4, Math.round(t.n/max*120))+'px"></span>'
+        +'<span class="lrow-c">'+t.n+'</span></div>';
+    }).join("")+'</div>'
+    +'<p class="verdict-note"><b>'+total+' skipped session'+(total===1?"":"s")+'</b><br>'
+    +'At five sessions a week that\'s '+(total/5).toFixed(1)+' weeks of training you\'ve talked yourself out of. '
+    +'“'+tally[0].reason+'” is your favourite — decide now what you\'ll do the next time it turns up at half six.</p>';
+}
+
+function jobFormHTML(c){
+  return '<div class="field grow"><label for="jn-'+c.id+'">Job</label>'
+      +'<input id="jn-'+c.id+'" type="text" maxlength="60" value="'+esc(c.name)+'"></div>'
+    +'<div class="field"><label for="je-'+c.id+'">Every (days)</label>'
+      +'<input id="je-'+c.id+'" type="number" min="1" max="365" value="'+c.every+'"></div>'
+    +'<button class="btn btn-primary" type="button" data-save="'+esc(c.id)+'">Save</button>'
+    +'<button class="btn btn-danger" type="button" data-del="'+esc(c.id)+'">Delete</button>';
+}
+
+function renderHouse(){
+  const list = choresSorted(), over = choresOverdue();
+  const host = document.getElementById("jobs");
+
+  host.innerHTML = list.map(function(c){
+    const o = choreOver(c), doneToday = c.last === TODAY_K;
+    let pill, pillS;
+    if(c.last === null){ pill = "Never done"; pillS = "over"; }
+    else if(o > 0){ pill = plural(o,"day") + " over"; pillS = "over"; }
+    else if(o === 0){ pill = "Due today"; pillS = "due"; }
+    else { pill = "Due in " + plural(-o,"day"); pillS = "ok"; }
+    return '<li data-s="'+choreState(c)+'">'
+      +'<div class="job">'
+        +'<span class="job-n">'+esc(c.name)+'</span>'
+        +'<span class="job-when">'+ageText(c)+' · every '+c.every+'d</span>'
+        +'<span class="pill" data-s="'+pillS+'">'+pill+'</span>'
+        +'<button class="job-do" type="button" data-do="'+esc(c.id)+'">'+(doneToday ? "Undo" : "Did it")+'</button>'
+        +'<button class="job-ed" type="button" data-ed="'+esc(c.id)+'" aria-expanded="false" aria-controls="ed-'+esc(c.id)+'">Edit</button>'
+      +'</div>'
+      +'<div class="job-edit" id="ed-'+esc(c.id)+'" hidden></div></li>';
+  }).join("");
+
+  const hv = document.getElementById("house-verdict");
+  if(!list.length){
+    hv.removeAttribute("data-s");
+    hv.textContent = "No jobs tracked. Add one and it starts keeping time from today.";
+  } else if(!over.length){
+    const next = list.filter(function(c){ return choreOver(c) === 0; });
+    hv.setAttribute("data-s","ok");
+    hv.innerHTML = "<b>Nothing overdue.</b> All " + plural(list.length,"job") + " are inside their window"
+      + (next.length ? ", though " + plural(next.length,"job") + " " + (next.length===1?"is":"are") + " due today." : ".");
+  } else {
+    const w = list[0], o = choreOver(w);
+    hv.setAttribute("data-s","over");
+    hv.innerHTML = (w.last === null
+        ? "<b>" + esc(w.name) + " has never been logged.</b> "
+        : "<b>" + esc(w.name) + " — " + ageText(w) + ", " + plural(o,"day") + " past due.</b> ")
+      + over.length + " of " + list.length + " jobs are behind.";
+  }
+
+  const note = document.getElementById("jobs-note");
+  note.textContent = over.length ? over.length + " behind" : list.length + " tracked, all current";
+
+  host.querySelectorAll("[data-do]").forEach(function(b){
+    b.addEventListener("click", function(){
+      const c = choreById(b.dataset.do); if(!c) return;
+      if(c.last === TODAY_K){ c.last = c.prev || null; delete c.prev; }
+      else { c.prev = c.last; c.last = TODAY_K; }
+      save(); renderHouse(); renderFigs();
+    });
+  });
+
+  host.querySelectorAll("[data-ed]").forEach(function(b){
+    b.addEventListener("click", function(){
+      const c = choreById(b.dataset.ed); if(!c) return;
+      const panel = document.getElementById("ed-"+c.id);
+      const open = panel.hidden;
+      if(open) panel.innerHTML = jobFormHTML(c);
+      panel.hidden = !open;
+      b.setAttribute("aria-expanded", String(open));
+      b.textContent = open ? "Close" : "Edit";
+      if(!open) return;
+
+      panel.querySelector("[data-save]").addEventListener("click", function(){
+        const n = document.getElementById("jn-"+c.id).value.trim();
+        const e = parseInt(document.getElementById("je-"+c.id).value, 10);
+        if(!n){ document.getElementById("jn-"+c.id).focus(); return; }
+        c.name = n;
+        if(e >= 1 && e <= 365) c.every = e;
+        save(); renderHouse(); renderFigs();
+      });
+      panel.querySelector("[data-del]").addEventListener("click", function(){
+        if(!confirm("Delete “"+c.name+"”? Its history goes with it.")) return;
+        state.chores = choreList().filter(function(x){ return x.id !== c.id; });
+        save(); renderHouse(); renderFigs();
+      });
+    });
+  });
+}
+
+function wireAddJob(){
+  const btn = document.getElementById("add-job"), form = document.getElementById("add-form");
+  btn.addEventListener("click", function(){
+    const open = form.hidden;
+    if(open){
+      form.innerHTML = '<div class="field grow"><label for="new-n">Job</label>'
+          +'<input id="new-n" type="text" maxlength="60" placeholder="Bathroom cleaned"></div>'
+        +'<div class="field"><label for="new-e">Every (days)</label>'
+          +'<input id="new-e" type="number" min="1" max="365" value="7"></div>'
+        +'<button class="btn btn-primary" type="button" id="new-save">Add it</button>'
+        +'<button class="btn btn-ghost" type="button" id="new-cancel">Cancel</button>';
+    }
+    form.hidden = !open;
+    btn.textContent = open ? "Close" : "Add a job";
+    if(!open) return;
+    document.getElementById("new-n").focus();
+
+    document.getElementById("new-save").addEventListener("click", function(){
+      const n = document.getElementById("new-n").value.trim();
+      const e = parseInt(document.getElementById("new-e").value, 10);
+      if(!n){ document.getElementById("new-n").focus(); return; }
+      choreList().push({id:"job-"+Date.now().toString(36), name:n,
+        every:(e >= 1 && e <= 365) ? e : 7, last:null});
+      form.hidden = true; btn.textContent = "Add a job";
+      save(); renderHouse(); renderFigs();
+    });
+    document.getElementById("new-cancel").addEventListener("click", function(){
+      form.hidden = true; btn.textContent = "Add a job";
+    });
+  });
+}
+
+function renderGuide(){
+  const host = document.getElementById("guide-list");
+  host.innerHTML = Object.keys(CUES).map(function(id){
+    const c = CUES[id];
+    return '<div class="guide-item"><button class="guide-head" type="button" data-g="'+id+'" aria-expanded="false" aria-controls="g-'+id+'">'
+      +'<span>'+c.name+'</span><span class="guide-kit">'+c.kit+'</span><span class="guide-caret">+</span></button>'
+      +'<div class="cue" id="g-'+id+'" hidden>'+cueHTML(id)+'</div></div>';
+  }).join("");
+  host.querySelectorAll(".guide-head").forEach(function(b){
+    b.addEventListener("click", function(){
+      const panel = document.getElementById("g-"+b.dataset.g);
+      const open = panel.hidden;
+      panel.hidden = !open;
+      b.setAttribute("aria-expanded", String(open));
+      b.querySelector(".guide-caret").textContent = open ? "−" : "+";
+    });
+  });
+}
+
+function renderProgramme(){
+  const week = weekNumber(), p = phaseFor(week), todayKey = sessionOn(TODAY);
+  document.getElementById("prog-grid").innerHTML = Object.keys(SESSIONS).map(function(k){
+    const s = SESSIONS[k];
+    const at = s.day === "Saturday" ? fmtH(DAY.weekendSlot) : fmtH(DAY.slot);
+    return '<div class="prog-card"'+(k===todayKey?' data-today="1"':"")+'>'
+      +'<span class="prog-day">'+s.day+' '+at+' · '+s.tag+'</span>'
+      +'<h3 class="prog-name">'+k+' — '+s.name+'</h3>'
+      +'<span class="prog-time">~'+minutesFor(k,week,false)+' min · short ~'+minutesFor(k,week,true)+' min</span>'
+      +'<p class="prog-body">'+s.work.map(function(w){ return setsFor(w,week)+"×"+w.n.replace(/ —.*/,"").toLowerCase(); }).join(", ")+'.</p>'
+      +'<p class="prog-body">'+s.blurb+'</p></div>';
+  }).join("");
+  const ph = PHASES[p.i];
+  document.getElementById("phase-note").innerHTML =
+    "<b>"+ph.weeks+" · "+ph.label+" — you're in week "+week+"</b><br>"+ph.note;
+}
+
+function renderAll(){
+  renderMasthead(); renderClock(); renderVerdict(); renderFigs();
+  renderSession(); renderHouse(); renderCal(); renderLedger(); renderProgramme();
+}
+
+/* ---------- reset ---------- */
+document.getElementById("reset-btn").addEventListener("click", function(){
+  if(!confirm("Wipe every logged session and every excuse? This can't be undone.")) return;
+  state = JSON.parse(JSON.stringify(BLANK));
+  state.start = TODAY_K;
+  save(); renderAll();
+});
+
+/* ---------- boot ---------- */
+const local = loadLocal();
+if(local) state = local;
+renderGuide();
+wireAddJob();
+renderAll();
+
+(function(){
+  if(typeof window.claude === "undefined" || !window.claude.use){ setSync("Saved in this browser only."); return; }
+  window.claude.use("db").then(function(store){
+    if(!store){ setSync("Saved in this browser only."); return; }
+    db = store;
+    docRef = db.doc("tracker/state");
+    docRef.onSnapshot(function(snap){
+      if(snap.exists){
+        const d = snap.data();
+        if(d && d.done){
+          state = Object.assign(JSON.parse(JSON.stringify(BLANK)), d);
+          saveLocal(); renderAll();
+        }
+      } else if(local){
+        docRef.set(state).catch(function(){});
+      }
+      setSync("Synced — your record follows you to any device.");
+    }, function(e){
+      setSync("Saved on this device only — the shared record is unavailable ("+e.code+").");
+    });
+  }).catch(function(){ setSync("Saved in this browser only."); });
+})();
+
+/* The clock drives the nag, so keep it honest while the page sits open. */
+setInterval(function(){
+  const now = new Date();
+  const rolled = key(now) !== TODAY_K;
+  TODAY = now; TODAY_K = key(now); NOW_H = now.getHours() + now.getMinutes()/60;
+  if(rolled) expressMode = false;
+  /* Don't yank a half-typed job out from under them on the minute tick. */
+  if(!rolled && document.querySelector(".job-edit:not([hidden])")) return;
+  renderAll();
+}, 60000);
+</script>
