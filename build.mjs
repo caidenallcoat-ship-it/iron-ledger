@@ -50,12 +50,12 @@ const out = `<!doctype html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
+<script>window.__BUILD__ = ${JSON.stringify(build)};</script>
 ${head}
 </head>
 <body>
 ${body}
 <script>
-window.__BUILD__ = ${JSON.stringify(build)};
 if ("serviceWorker" in navigator) {
   addEventListener("load", function () {
     navigator.serviceWorker.register("/sw.js").then(function (reg) {

@@ -51,7 +51,13 @@
   body{background:var(--ground);color:var(--ink);margin:0;
     font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.55;
     -webkit-font-smoothing:antialiased}
-  .wrap{max-width:920px;margin:0 auto;padding:26px 20px 72px;display:flex;flex-direction:column;gap:26px}
+  .wrap{max-width:920px;margin:0 auto;
+    padding:calc(26px + env(safe-area-inset-top)) 20px calc(72px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:26px}
+  /* Paint the status-bar strip in the app's own colour, above the sticky nav,
+     so nothing scrolls up underneath the clock and the battery. */
+  body::before{content:"";position:fixed;top:0;left:0;right:0;
+    height:env(safe-area-inset-top);background:var(--ground);z-index:31;pointer-events:none}
   h1,h2,h3{font-family:"Archivo Black","Archivo",Arial,sans-serif;font-weight:400;margin:0;text-wrap:balance}
   .eyebrow{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;font-size:11px;
     letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
@@ -78,7 +84,7 @@
 
   /* section nav — sticky, scrolls sideways on a phone rather than wrapping
      into three rows and eating the screen */
-  .secnav{position:sticky;top:0;z-index:30;display:flex;gap:0;overflow-x:auto;
+  .secnav{position:sticky;top:env(safe-area-inset-top);z-index:30;display:flex;gap:0;overflow-x:auto;
     background:var(--ground);border-bottom:1px solid var(--line);
     margin:0 -20px;padding:0 20px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .secnav::-webkit-scrollbar{display:none}
@@ -87,7 +93,7 @@
     padding:12px 13px;border-bottom:2px solid transparent;white-space:nowrap}
   .secnav a:hover{color:var(--ink)}
   .secnav a[aria-current="true"]{color:var(--ink);border-bottom-color:var(--warn);font-weight:600}
-  section[id]{scroll-margin-top:52px}
+  section[id]{scroll-margin-top:calc(52px + env(safe-area-inset-top))}
 
   /* collapsible reference sections */
   details.fold > summary{list-style:none;cursor:pointer;display:flex;align-items:center;
@@ -462,7 +468,7 @@
   @media (max-width:560px){
     .cue-row{grid-template-columns:1fr;gap:2px}
     .clock{grid-template-columns:repeat(2,1fr)}
-    .wrap{padding:14px 14px 64px;gap:20px}
+    .wrap{padding:calc(14px + env(safe-area-inset-top)) 14px calc(64px + env(safe-area-inset-bottom));gap:20px}
     .secnav{margin:0 -14px;padding:0 14px}
     .verdict{padding:18px 16px}
     .sess-top,.strip,.actions,.excuse,.note-bar,.cue{padding-left:16px;padding-right:16px}
@@ -848,6 +854,14 @@ function setSync(m){ const el=document.getElementById("sync-state"); if(el) el.t
    the network decides what it's doing. */
 var Store = (function(){
   var mode = "local", ref = null, secret = null, pushing = false, dirty = false, pendingPush = false;
+  var readyCbs = [], readyFired = false;
+  /* Fires once the backend is settled. Anything that depends on knowing
+     whether there's a server must wait for this, not for a timeout. */
+  function markReady(){
+    readyFired = true;
+    const list = readyCbs; readyCbs = [];
+    list.forEach(function(f){ try{ f(); }catch(e){} });
+  }
 
   function readSecret(){ try{ return localStorage.getItem("iron-ledger-key") || null; }catch(e){ return null; } }
   function headers(withBody){
@@ -910,8 +924,10 @@ var Store = (function(){
             if(snap.exists){ if(usable(snap.data())) apply(snap.data()); }
             else ref.set(state).catch(function(){});
             setSync("Synced — your record follows you to any device.");
+            markReady();
           }, function(e){
             setSync("Saved on this device only — the shared record is unavailable ("+e.code+").");
+            markReady();
           });
         }).catch(function(){ Store.startApi(apply, askForKey); });
         return;
@@ -923,12 +939,13 @@ var Store = (function(){
       secret = readSecret();
       fetch("/api/state", {method:"GET", headers:headers(false)})
         .then(function(r){
-          if(r.status === 401){ mode = "api"; askForKey(null); return null; }
+          if(r.status === 401){ mode = "api"; askForKey(null); markReady(); return null; }
           if(r.status === 503){
             mode = "local";
             return r.json().then(function(j){
               setSync("Server reached, but not set up yet: " + (j && j.error === "key_not_configured"
                 ? "LEDGER_KEY isn't set." : "no database is connected."));
+              markReady();
               return null;
             });
           }
@@ -940,10 +957,12 @@ var Store = (function(){
           if(mode !== "api") return;
           if(usable(d)) apply(d); else Store.push();
           setSync("Synced — your record follows you to any device.");
+          markReady();
         })
         .catch(function(){
           mode = "local";
           setSync("Saved in this browser only.");
+          markReady();
         });
     },
 
@@ -961,16 +980,26 @@ var Store = (function(){
           if(mode !== "api") return;
           if(usable(d)) apply(d); else Store.push();
           setSync("Synced — your record follows you to any device.");
+          markReady();
           onFail(null);
         })
         .catch(function(){ onFail("Couldn't reach the server."); });
     },
 
-    goLocal: function(){ mode = "local"; setSync("Saved in this browser only."); },
+    goLocal: function(){ mode = "local"; setSync("Saved in this browser only."); markReady(); },
+
+    /* The first connection can fail simply because mobile data hadn't come up
+       yet. Without this the app sits in local mode until it's reloaded. */
+    retryConnect: function(apply, askForKey){
+      if(mode !== "local" || !navigator.onLine) return;
+      Store.startApi(apply, askForKey);
+    },
 
     /* Anything queued while offline goes out as soon as there's a connection. */
     pending: function(){ return pendingPush; },
     secret: function(){ return secret; },
+    hasSecret: function(){ return Boolean(secret); },
+    ready: function(cb){ if(readyFired) cb(); else readyCbs.push(cb); },
     flush: function(){ if(pendingPush && mode === "api" && navigator.onLine) pushApi(); }
   };
 })();
@@ -2000,6 +2029,7 @@ function b64ToBytes(b64){
 }
 
 var Notify = (function(){
+  var wired = false;
   function supported(){
     return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   }
@@ -2071,13 +2101,16 @@ var Notify = (function(){
   return {
     init: async function(){
       const b = btn(); if(!b) return;
+      if(wired && Store.mode() === "api") return;
 
       if(Store.mode() !== "api"){
         b.disabled = true;
-        paint(false, "Reminders need syncing",
-          "This device isn't connected to your server, so there's nothing to remind from.");
+        paint(false, "Reminders need syncing", Store.hasSecret()
+          ? "Couldn't reach your server just now. Pull down to refresh and try again."
+          : "Unlock the ledger first — you need to enter your key on this device.");
         return;
       }
+      b.disabled = false;
       if(!supported()){
         b.disabled = true;
         /* iOS only exposes push to an installed PWA. Say that, rather than
@@ -2098,6 +2131,7 @@ var Notify = (function(){
       paint(Boolean(sub), null, sub
         ? "This device will get the nudge at 6pm. Tap to turn it off."
         : "One tap. The nudge arrives at 6pm whether or not anything else is running.");
+      wired = true;
       b.addEventListener("click", function(){
         if(b.getAttribute("data-on") === "1") disable(); else enable();
       });
@@ -2144,11 +2178,20 @@ function showGate(msg){
 
 Store.start(adoptRemote, showGate);
 
-setTimeout(function(){ Notify.init(); }, 1200);
+Store.ready(function(){ Notify.init(); });
+/* Belt and braces: if the very first attempt landed while the connection was
+   still coming up, try again as it settles. */
+[3000, 8000].forEach(function(ms){ setTimeout(function(){ Notify.init(); }, ms); });
 
-window.addEventListener("online", function(){ Store.flush(); });
+window.addEventListener("online", function(){
+  Store.flush();
+  Store.retryConnect(adoptRemote, showGate);
+});
 document.addEventListener("visibilitychange", function(){
-  if(document.visibilityState === "visible") Store.flush();
+  if(document.visibilityState !== "visible") return;
+  Store.flush();
+  Store.retryConnect(adoptRemote, showGate);
+  Notify.init();
 });
 
 /* The clock drives the nag, so keep it honest while the page sits open. */
@@ -2158,6 +2201,8 @@ setInterval(function(){
   TODAY = now; TODAY_K = key(now); NOW_H = now.getHours() + now.getMinutes()/60;
   if(rolled) expressMode = false;
   Store.flush();
+  Store.retryConnect(adoptRemote, showGate);
+  Notify.init();
   /* Don't yank a half-typed job out from under them on the minute tick. */
   if(!rolled && document.querySelector(".job-edit:not([hidden])")) return;
   renderAll();
