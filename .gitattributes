@@ -1,0 +1,8 @@
+# Normalise line endings. Everything is authored with LF; without this, git on
+# Windows rewrites to CRLF and warns on every single commit.
+* text=auto eol=lf
+
+# Binary assets must never be touched.
+*.png binary
+*.jpg binary
+*.ico binary
