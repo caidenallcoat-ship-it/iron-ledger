@@ -17,8 +17,17 @@ publish time, which is why this file has no doctype, `<html>`, `<head>` or
 
 ## What's in it
 
-- **The programme** — five sessions a week (Mon Swing, Tue Wind, Thu Pull,
-  Fri Press, Sat Grinder; Wed and Sun rest), on eight-week progression blocks.
+- **The programme** — five sessions sit on the plan (Mon Swing, Tue Wind,
+  Thu Pull, Fri Press, Sat Grinder; Wed and Sun rest), on eight-week
+  progression blocks. The **weekly target** (`state.target`, default 3) is what
+  actually counts — adherence research is clear that people asked for six
+  sessions a week stick worst and people asked for two stick best, so the week
+  is the unit that passes or fails, not the day.
+- **Rolling 28-day consistency** — the headline number, in place of a fragile
+  streak. Streak anxiety is the single biggest cause of habit-app abandonment;
+  a percentage over a window is dented by a miss rather than destroyed.
+- **Never miss twice** — the one rule the app enforces. One skipped session is
+  noise; two in a row triggers the loudest state in the app.
 - **The nag** — a verdict panel keyed to the working day (at work, commute,
   the window, late, last call, day gone) and to how long since the last session.
 - **The short version** — a half-length session offered when it's late. It

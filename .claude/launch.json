@@ -4,7 +4,10 @@
     {
       "name": "ledger-preview",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765"],
+      "runtimeArgs": [
+        "-m", "http.server", "8765",
+        "--directory", "C:/Users/Caiden/code/iron-ledger"
+      ],
       "port": 8765
     }
   ]

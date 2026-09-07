@@ -184,6 +184,19 @@
   .excuse-opt:hover{border-color:var(--miss)}
   .excuse-n{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--miss);font-weight:600}
 
+  /* weekly target */
+  .target-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:-14px;
+    padding:11px 15px;border:1px solid var(--line);border-top:0;background:var(--surface2)}
+  .target-bar .lab{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--muted)}
+  .target-bar .val{font-family:"Archivo Black",Arial,sans-serif;font-size:17px;
+    font-variant-numeric:tabular-nums;min-width:1.2ch;text-align:center}
+  .target-bar .why{font-size:12.5px;color:var(--muted);flex:1;min-width:200px}
+  .step{font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600;line-height:1;
+    width:30px;height:30px;border:1px solid var(--line2);background:var(--surface);color:var(--ink)}
+  .step:hover:not(:disabled){border-color:var(--ink)}
+  .step:disabled{opacity:.35;cursor:default}
+
   /* the house */
   .house-verdict{padding:13px 20px;background:var(--surface2);border-bottom:1px solid var(--line);
     font-size:14px;color:var(--ink2);display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
@@ -226,11 +239,15 @@
   /* punch card */
   .box{background:var(--surface);border:1px solid var(--line);padding:18px 20px}
   .cal-scroll{overflow-x:auto;padding-bottom:6px}
-  .cal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:4px;min-width:660px}
+  .cal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr) 8px;gap:4px;min-width:660px}
+  .wkbar{display:block;width:100%;height:8px;margin-top:2px;background:transparent}
+  .wkbar[data-s="hit"]{background:var(--done)}
+  .wkbar[data-s="short"]{background:var(--miss)}
+  .wkbar[data-s="open"]{background:var(--warn);opacity:.55}
   .cell{width:100%;aspect-ratio:1;min-height:15px;background:var(--surface2);border:0;padding:0;cursor:default}
   .cell[data-s="done"]{background:var(--done)}
   .cell[data-s="express"]{background:var(--done);opacity:.5}
-  .cell[data-s="miss"]{background:var(--miss)}
+  .cell[data-s="untrained"]{background:transparent;border:1px solid var(--line2)}
   .cell[data-s="due"]{background:var(--warn)}
   .cell[data-s="sched"]{background:transparent;border:1.5px dashed var(--line2)}
   .cell[data-s="none"]{background:transparent}
@@ -316,6 +333,7 @@
   </section>
 
   <section class="figs" id="figs"></section>
+  <div class="target-bar" id="target-bar"></div>
 
   <section>
     <div class="sec-head"><h2>Today</h2><p class="sec-note" id="today-note"></p></div>
@@ -341,17 +359,18 @@
   <section>
     <div class="sec-head">
       <h2>Twelve weeks</h2>
-      <p class="sec-note">Every scheduled day you leave empty turns red on its own. Click a past one to correct the record.</p>
+      <p class="sec-note">Days you trained, and under each column a bar for whether that week cleared your target. A single empty day isn't a failure — a short week is. Click a past day to correct the record.</p>
     </div>
     <div class="box">
       <div class="cal-scroll"><div class="cal" id="cal"></div></div>
       <div class="legend">
         <span><i class="key" style="background:var(--done)"></i>Trained</span>
         <span><i class="key" style="background:var(--done);opacity:.5"></i>Short version</span>
-        <span><i class="key" style="background:var(--miss)"></i>Missed</span>
+        <span><i class="key" style="border:1px solid var(--line2)"></i>Not trained</span>
         <span><i class="key" style="background:var(--warn)"></i>Due today</span>
-        <span><i class="key" style="border:1.5px dashed var(--line2)"></i>Scheduled</span>
         <span><i class="key" style="background:var(--surface2)"></i>Rest</span>
+        <span style="margin-left:auto"><i class="key" style="background:var(--done);height:5px"></i>Week hit target</span>
+        <span><i class="key" style="background:var(--miss);height:5px"></i>Week fell short</span>
       </div>
     </div>
   </section>
@@ -375,7 +394,7 @@
   <section>
     <div class="sec-head">
       <h2>The programme</h2>
-      <p class="sec-note">Five sessions a week, Wednesday and Sunday off. Eight-week block — the volume climbs, so you don't get to stay where you are.</p>
+      <p class="sec-note">Five sessions sit on the plan, Wednesday and Sunday off — but the target above is how many you actually owe each week. Pick whichever fit. Eight-week block; the volume climbs.</p>
     </div>
     <div class="box">
       <div class="prog-grid" id="prog-grid"></div>
@@ -579,10 +598,10 @@ let TODAY = new Date(), TODAY_K = key(TODAY);
 let NOW_H = TODAY.getHours() + TODAY.getMinutes()/60;
 
 /* ---------- state ---------- */
-const BLANK = {start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null};
+const BLANK = {start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null, target:3};
 const LS_KEY = "iron-ledger-v2";
 let state = JSON.parse(JSON.stringify(BLANK));
-let db = null, docRef = null, expressMode = false;
+let db = null, docRef = null, expressMode = false, expressTouched = false;
 
 function loadLocal(){
   try{ const raw = localStorage.getItem(LS_KEY);
@@ -629,9 +648,59 @@ function missedDays(){
   return out;
 }
 function lastSession(){ const ks = Object.keys(state.done).sort(); return ks.length ? ks[ks.length-1] : null; }
-function sessionsThisWeek(){
-  const dow = (TODAY.getDay()+6)%7, mon = addDays(TODAY,-dow);
+function mondayOf(d){ return addDays(d, -((d.getDay()+6)%7)); }
+function sessionsThisWeek(){ return doneInWeek(mondayOf(TODAY)); }
+function doneInWeek(mon){
   let n=0; for(let i=0;i<7;i++) if(state.done[key(addDays(mon,i))]) n++;
+  return n;
+}
+
+/* The week is the unit of success, not the day. Adherence research is blunt
+   about this: people asked for six sessions a week stick worst, people asked
+   for two stick best. Five days stay on the plan; the quota is what counts. */
+function weekTarget(){
+  const t = parseInt(state.target, 10);
+  return (t >= 1 && t <= 7) ? t : 3;
+}
+function daysIn(){ return daysBetween(state.start, TODAY_K) + 1; }
+
+/* Consistency over a rolling 28 days — the window that best predicts whether
+   someone is still training a year later, and a number one bad day dents
+   rather than destroys. */
+function consistency28(){
+  const floor = parseKey(state.start), back = addDays(TODAY, -27);
+  const from = back > floor ? back : floor;
+  const days = daysBetween(key(from), TODAY_K) + 1;
+  if(days < 7) return null;
+  const expected = Math.max(1, Math.round((days/7) * weekTarget()));
+  let did = 0, d = from;
+  while(key(d) <= TODAY_K){ if(state.done[key(d)]) did++; d = addDays(d,1); }
+  return {pct: Math.min(100, Math.round(did/expected*100)), did:did, expected:expected};
+}
+
+/* Never miss twice: one skipped session is noise, two in a row is the start
+   of stopping. This is the only rule the app actually enforces. */
+function missedTwice(){
+  const seen = []; const floor = parseKey(state.start);
+  let d = addDays(TODAY,-1);
+  while(d >= floor && seen.length < 2){
+    if(isScheduled(d)) seen.push(!!state.done[key(d)]);
+    d = addDays(d,-1);
+  }
+  return seen.length === 2 && !seen[0] && !seen[1];
+}
+function weeksBelowTarget(){
+  let n = 0, mon = mondayOf(parseKey(state.start)), thisMon = mondayOf(TODAY);
+  while(mon < thisMon){
+    if(doneInWeek(mon) < weekTarget()) n++;
+    mon = addDays(mon, 7);
+  }
+  return n;
+}
+/* Scheduled days left this week, today included. */
+function daysLeftThisWeek(){
+  let n = 0, d = new Date(TODAY), mon = mondayOf(TODAY), end = addDays(mon,6);
+  while(d <= end){ if(isScheduled(d)) n++; d = addDays(d,1); }
   return n;
 }
 function expressRate(){
@@ -715,53 +784,71 @@ function verdict(){
   const mins = sk ? minutesFor(sk, week, false) : 0;
   const exMins = sk ? minutesFor(sk, week, true) : 0;
 
+  const tgt = weekTarget(), wk = sessionsThisWeek(), left = daysLeftThisWeek();
+
   if(doneToday){
     const rec = state.done[TODAY_K], er = expressRate();
+    const hit = wk >= tgt;
     return {sev:"ok", eyebrow: rec.express ? "Logged — short version" : "Logged",
-      line: SESSIONS[rec.key].name+" done. That's "+streak+" in a row.",
+      line: hit ? SESSIONS[rec.key].name+" done. That's the week — "+wk+" of "+tgt+"."
+                : SESSIONS[rec.key].name+" done. "+wk+" of "+tgt+" this week.",
       sub: (er && er.ex >= Math.ceil(er.of*0.6))
-        ? "<b>"+er.ex+" of your last "+er.of+" were the short version.</b> It counts, and it's kept the streak alive — but the full session is what actually changes your shape. Do the whole thing next time. "+nextDueText()+"."
-        : "Eat something with protein in the next hour and get to bed at a sensible time. "+nextDueText()+"."};
+        ? "<b>"+er.ex+" of your last "+er.of+" were the short version.</b> It counts and it keeps the week — but the full session is what changes your shape. Do the whole thing next time. "+nextDueText()+"."
+        : (hit ? "Target met. Anything else this week is a bonus, not a debt. "+nextDueText()+"."
+               : "Eat something with protein in the next hour and get to bed at a sensible time. "+nextDueText()+".")};
   }
 
-  if(total === 0 && missed.length === 0){
+  if(total === 0 && daysIn() <= 1){
     return {sev:"warn", eyebrow:"Nothing logged",
       line: schedToday ? "Day one is tonight — "+s.name+", "+mins+" minutes." : "Nothing logged yet. First session is "+nextDueText(true)+".",
-      sub:"Your slot is <b>"+fmtH(DAY.slot)+"</b>, half an hour after you get through the door. Read the form guide below now, while you're sat down."};
+      sub:"Your slot is <b>"+fmtH(DAY.slot)+"</b>, half an hour after you get through the door. The target is <b>"+tgt+" sessions a week</b>, not all five — five are on the plan so you can pick which."};
   }
 
+  /* Coming back from a real break. Nothing is served by a lecture here: the
+     only number that matters is one session today. */
   if(gap !== null && gap >= 7){
     return {sev:"grim", eyebrow:gap+" days since you trained",
-      line: gap+" days. Your best run was "+state.longest+" sessions.",
-      sub: top
-        ? "You gave it up for <b>“"+top.reason+"”</b> — the reason you've now used <b>"+top.n+" time"+(top.n===1?"":"s")+"</b>. "+(schedToday ? "Tonight is "+s.name+". Take the "+exMins+"-minute short version if the full one feels like too much" : "Next is "+nextDueText(true))+" — the first session back is always the worst one, and it's the only one that matters."
-        : "You didn't even name a reason, you just stopped. "+(schedToday ? "Tonight is "+s.name : "Next is "+nextDueText(true))+". Start again — the first session back is always the worst one."};
+      line:"You've been out "+gap+" days. Nothing to rebuild — just start.",
+      sub: (schedToday ? "Tonight is "+s.name+", and the <b>"+exMins+"-minute short version</b> is already selected below. Take it. " : "Next is "+nextDueText(true)+". ")
+        + "The first session back is the only hard one"
+        + (top ? ", and it doesn't care that you've reached for “"+top.reason+"” "+top.n+" times." : ". Don't try to make the week up — just take today.")};
   }
 
-  if(missed.length >= 2){
-    const names = missed.slice(-3).map(function(k){ return DAY_NAMES[parseKey(k).getDay()]; }).join(", ");
-    return {sev:"bad", eyebrow:missed.length+" sessions missed",
-      line:"You're not resting. You're stopping.",
-      sub:"Empty scheduled days: <b>"+names+"</b>. "+(top ? "Most common reason: <b>“"+top.reason+"”</b> ("+top.n+"×). " : "")
-        +(schedToday ? "Tonight is scheduled — break the run here, even if it's only the "+exMins+"-minute version." : "Next is "+nextDueText(true)+".")};
+  /* The one rule with real evidence behind it. */
+  if(missedTwice()){
+    return {sev:"bad", eyebrow:"Two in a row",
+      line:"That's twice. Twice is how it stops.",
+      sub:"One skipped session is nothing — two is the start of the pattern. "
+        +(top ? "Most-used reason: <b>“"+top.reason+"”</b> ("+top.n+"×). " : "")
+        +(schedToday ? "Break it tonight with <b>"+s.name+"</b>, or the "+exMins+"-minute version if that's what it takes." : "Next is "+nextDueText(true)+" — that one isn't optional.")};
   }
 
-  if(missed.length === 1){
+  /* Behind on the week with the days running out. */
+  if(schedToday && wk < tgt && left <= (tgt - wk)){
+    return {sev:"bad", eyebrow:"Week at risk",
+      line: wk+" of "+tgt+" done, and "+plural(left,"session")+" left to get there.",
+      sub:"Every remaining training day this week is now compulsory — there's no slack left. Tonight is <b>"+s.name+", "+mins+" minutes</b>."};
+  }
+
+  if(missed.length === 1 && wk < tgt){
     return {sev:"warn", eyebrow:"One missed",
       line:"You skipped "+DAY_NAMES[parseKey(missed[0]).getDay()]+". One is a blip.",
-      sub:"Miss the next one and it's a pattern — and patterns are exactly what you said you don't have the discipline to break. "
-        +(schedToday ? "Tonight: <b>"+s.name+", "+mins+" minutes, from "+fmtH(DAY.slot)+"</b>." : "Next is "+nextDueText(true)+".")};
+      sub:"It costs you nothing as long as it doesn't become two — that's the whole rule. You're <b>"+wk+" of "+tgt+"</b> this week with "+plural(left,"day")+" to play with. "
+        +(schedToday ? "Tonight: <b>"+s.name+", "+mins+" minutes</b>." : "Next is "+nextDueText(true)+".")};
   }
 
   if(!schedToday){
-    return {sev:"ok", eyebrow:"Rest day",
-      line:"No session today. Next is "+nextDueText(true)+".",
-      sub: streak > 0
-        ? "<b>"+streak+" in a row</b> going in. Rest days are part of the programme, not a negotiation — walk somewhere at lunch, sleep properly, eat like someone who trains."
-        : "Rest days only count as rest if you actually trained. Check the grid below."};
+    return {sev: wk >= tgt ? "ok" : "warn", eyebrow:"Rest day",
+      line: wk >= tgt
+        ? "Week's done — "+wk+" of "+tgt+". Nothing owed today."
+        : wk+" of "+tgt+" this week, and today isn't a training day.",
+      sub: wk >= tgt
+        ? "Rest is part of the programme, not a negotiation. Walk somewhere, sleep properly, eat like someone who trains. Next is "+nextDueText(true)+"."
+        : "You've got "+plural(left,"training day")+" left to reach "+tgt+". Next is <b>"+nextDueText(true)+"</b> — and a rest day is the right time to clear the jobs below."};
   }
 
-  const streakLine = streak > 0 ? " You're <b>"+streak+" deep</b>; this is the one that keeps it." : "";
+  const weekLine = wk > 0 ? " You're <b>"+wk+" of "+tgt+"</b> this week." : " Nothing logged this week yet.";
+  const streakLine = weekLine;
   const warn = {sev:"warn", eyebrow:"Due tonight"};
 
   switch(phase){
@@ -801,8 +888,12 @@ function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").rep
 function renderMasthead(){
   document.getElementById("m-date").textContent =
     TODAY.toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"}).toUpperCase();
-  const w = weekNumber();
-  document.getElementById("m-week").textContent = "WEEK "+w+" · "+PHASES[phaseFor(w).i].label.toUpperCase();
+  const w = weekNumber(), di = daysIn();
+  /* The first 28 days predict adherence better than anything else, so they
+     get counted out loud rather than buried in a week number. */
+  document.getElementById("m-week").textContent = di <= 28
+    ? "DAY "+di+" OF 28 · "+PHASES[phaseFor(w).i].label.toUpperCase()
+    : "WEEK "+w+" · "+PHASES[phaseFor(w).i].label.toUpperCase();
   const sk = sessionOn(TODAY);
   document.getElementById("m-slot").textContent = sk
     ? "SLOT "+(isWorkday(TODAY)?fmtH(DAY.slot):fmtH(DAY.weekendSlot))+" · "+minutesFor(sk,w,false)+" MIN"
@@ -853,13 +944,14 @@ function renderFigs(){
   const streak = currentStreak(), last = lastSession();
   const gap = last ? daysBetween(last, TODAY_K) : null;
   const missed = missedDays().length, total = Object.keys(state.done).length;
-  const wk = sessionsThisWeek();
+  const wk = sessionsThisWeek(), c = consistency28();
   const items = [
-    {k:"Current streak", v:streak, u:streak===1?"session":"sessions", f:streak>=4?"good":null},
-    {k:"Longest ever",   v:state.longest, u:"sessions"},
+    {k:"This week",      v:wk+"/"+weekTarget(), u:"target", f:wk>=weekTarget()?"good":null},
+    {k:"Last 28 days",   v:c ? c.pct+"%" : "—", u:c ? c.did+" of "+c.expected : "too early to say",
+      f:c ? (c.pct>=80?"good":(c.pct<50?"bad":null)) : null},
+    {k:"Current streak", v:streak, u:streak===1?"session":"sessions"},
     {k:"Days since",     v:gap===null?"—":gap, u:gap===null?"never trained":"days", f:(gap!==null&&gap>=4)?"bad":null},
-    {k:"This week",      v:wk+"/5", u:"done", f:wk>=5?"good":null},
-    {k:"Missed",         v:missed, u:"scheduled", f:missed>0?"bad":null},
+    {k:"Weeks short",    v:weeksBelowTarget(), u:"of target", f:weeksBelowTarget()>0?"bad":null},
     {k:"Jobs behind",    v:choresOverdue().length, u:"of "+choreList().length,
       f:choresOverdue().length > 0 ? "bad" : "good"}
   ];
@@ -867,6 +959,23 @@ function renderFigs(){
     return '<div class="fig"'+(i.f?' data-flag="'+i.f+'"':"")+'>'
       +'<span class="k">'+i.k+'</span><span class="n">'+i.v+' <small>'+i.u+'</small></span></div>';
   }).join("");
+}
+
+function renderTarget(){
+  const t = weekTarget(), host = document.getElementById("target-bar");
+  const why = t <= 2 ? "Low enough that life won't break it. Raise it once that feels easy."
+    : t === 3 ? "Three is the number most people actually hold. Five sessions stay on the plan — you pick which three."
+    : t === 4 ? "Four is demanding but holdable. Drop it rather than miss it."
+    : "Five is the whole plan every week. Adherence data says this is where people quit — be sure.";
+  host.innerHTML = '<span class="lab">Weekly target</span>'
+    +'<button class="step" type="button" id="t-down" aria-label="Lower weekly target"'+(t<=1?" disabled":"")+'>−</button>'
+    +'<span class="val" id="t-val" aria-live="polite">'+t+'</span>'
+    +'<button class="step" type="button" id="t-up" aria-label="Raise weekly target"'+(t>=5?" disabled":"")+'>+</button>'
+    +'<span class="why">'+why+'</span>';
+  const set = function(n){ state.target = n; save(); renderAll(); };
+  const dn = document.getElementById("t-down"), up = document.getElementById("t-up");
+  if(!dn.disabled) dn.addEventListener("click", function(){ set(t-1); });
+  if(!up.disabled) up.addEventListener("click", function(){ set(t+1); });
 }
 
 function cueHTML(id){
@@ -892,6 +1001,11 @@ function renderSession(){
 
   const s = SESSIONS[sk];
   const done = !!state.done[TODAY_K];
+  /* Back from a week or more off: the short version is the default, not a
+     concession you have to go and find. The first session back is the only
+     one that matters and it should look as small as possible. */
+  const lastK = lastSession(), gapD = lastK ? daysBetween(lastK, TODAY_K) : null;
+  if(!expressTouched && !done && gapD !== null && gapD >= 7) expressMode = true;
   const ticked = state.ticks[TODAY_K] || [];
   const list = workFor(sk, expressMode);
   const mins = minutesFor(sk, week, expressMode);
@@ -975,9 +1089,9 @@ function wireSession(count){
   });
 
   const on = document.getElementById("ex-on");
-  if(on) on.addEventListener("click", function(){ expressMode = true; renderSession(); });
+  if(on) on.addEventListener("click", function(){ expressMode = true; expressTouched = true; renderSession(); });
   const off = document.getElementById("ex-off");
-  if(off) off.addEventListener("click", function(){ expressMode = false; renderSession(); });
+  if(off) off.addEventListener("click", function(){ expressMode = false; expressTouched = true; renderSession(); });
 
   const logBtn = document.getElementById("log-btn");
   if(logBtn) logBtn.addEventListener("click", function(){
@@ -1027,7 +1141,9 @@ function renderCal(){
       else if(k > TODAY_K) st = sched ? "sched" : "none";
       else if(k === TODAY_K) st = sched ? "due" : "rest";
       else if(k < state.start) st = "none";
-      else if(sched) st = "miss";
+      /* A scheduled day you didn't train is not a failure any more — the week
+         is the unit that passes or fails, and it's marked on the bar below. */
+      else if(sched) st = "untrained";
       else st = "rest";
       const clickable = sched && k <= TODAY_K && k >= state.start;
       const label = d.toLocaleDateString(undefined,{day:"numeric",month:"short"})+" — "
@@ -1037,6 +1153,18 @@ function renderCal(){
         +(clickable ? ' data-click="1"' : " disabled")
         +' title="'+esc(label)+'" aria-label="'+esc(label)+'"></button>';
     }
+    /* Eighth row: did the week itself clear the target? */
+    const mon = addDays(first, w*7), n = doneInWeek(mon), tgt = weekTarget();
+    const future = key(mon) > TODAY_K;
+    const current = key(mon) <= TODAY_K && key(addDays(mon,6)) >= TODAY_K;
+    const before = key(addDays(mon,6)) < state.start;
+    let ws;
+    if(future || before) ws = "none";
+    else if(n >= tgt) ws = "hit";
+    else if(current) ws = "open";
+    else ws = "short";
+    html += '<span class="wkbar" data-s="'+ws+'" title="'+esc("Week of "
+      + mon.toLocaleDateString(undefined,{day:"numeric",month:"short"}) + " — " + n + " of " + tgt)+'"></span>';
   }
   cal.innerHTML = html;
   cal.querySelectorAll('[data-click="1"]').forEach(function(c){
@@ -1227,7 +1355,7 @@ function renderProgramme(){
 }
 
 function renderAll(){
-  renderMasthead(); renderClock(); renderVerdict(); renderFigs();
+  renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
   renderSession(); renderHouse(); renderCal(); renderLedger(); renderProgramme();
 }
 
