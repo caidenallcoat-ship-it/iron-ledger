@@ -15,6 +15,43 @@ const STORE_TOKEN =
 
 export const STATE_DOC = "iron-ledger:state";
 export const SUBS_HASH = "iron-ledger:subs";
+export const FAIL_PREFIX = "iron-ledger:fail:";
+
+/**
+ * Crude but sufficient brute-force brake. The key is the only thing standing
+ * between a public URL and the record, so a wrong key costs the caller their
+ * budget for a while. Counted per client IP, in Redis, expiring on its own.
+ */
+const MAX_FAILURES = 10;
+const WINDOW_SECONDS = 900;
+
+function clientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.length) return fwd.split(",")[0].trim();
+  return req.headers["x-real-ip"] || "unknown";
+}
+
+/** True when this caller has burned through its allowance. */
+export async function isLockedOut(req) {
+  try {
+    const out = await redis(["GET", FAIL_PREFIX + clientIp(req)]);
+    return Number(out && out.result) >= MAX_FAILURES;
+  } catch {
+    return false; // never lock someone out because the store hiccuped
+  }
+}
+
+export async function noteFailure(req) {
+  try {
+    const k = FAIL_PREFIX + clientIp(req);
+    const out = await redis(["INCR", k]);
+    if (Number(out && out.result) === 1) await redis(["EXPIRE", k, WINDOW_SECONDS]);
+  } catch {}
+}
+
+export async function clearFailures(req) {
+  try { await redis(["DEL", FAIL_PREFIX + clientIp(req)]); } catch {}
+}
 
 export function storeConfigured() {
   return Boolean(STORE_URL && STORE_TOKEN);

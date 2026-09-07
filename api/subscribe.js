@@ -5,7 +5,7 @@
  * Gated by the same LEDGER_KEY as the record, so nobody else can attach a
  * device to these notifications.
  */
-import { redis, sameSecret, storeConfigured, SUBS_HASH } from "./_lib.js";
+import { redis, sameSecret, storeConfigured, isLockedOut, noteFailure, clearFailures, SUBS_HASH } from "./_lib.js";
 
 const LEDGER_KEY = process.env.LEDGER_KEY;
 
@@ -25,9 +25,14 @@ export default async function handler(req, res) {
 
   if (!storeConfigured()) return res.status(503).json({ error: "storage_not_configured" });
   if (!LEDGER_KEY) return res.status(503).json({ error: "key_not_configured" });
+  if (await isLockedOut(req)) {
+    return res.status(429).json({ error: "too_many_attempts" });
+  }
   if (!sameSecret(req.headers["x-ledger-key"], LEDGER_KEY)) {
+    await noteFailure(req);
     return res.status(401).json({ error: "bad_key" });
   }
+  await clearFailures(req);
 
   let body = req.body;
   if (typeof body === "string") {
