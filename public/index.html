@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-07 13:38";</script>
+<script>window.__BUILD__ = "2026-09-07 13:42";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2086,6 +2086,7 @@ function renderAll(){
   renderSession(); renderHouse(); renderCal(); renderLedger(); renderProgramme();
   renderAppearance();
   renderKeyBlock();
+  Notify.init();
 }
 
 /* ---------- reset ---------- */
@@ -2190,14 +2191,12 @@ var Notify = (function(){
   return {
     init: async function(){
       const b = btn(); if(!b) return;
-      if(wired && Store.mode() === "api") return;
 
-      if(Store.mode() !== "api"){
+      if(Store.mode() !== "api" || !Store.hasSecret()){
         b.disabled = true;
-        renderKeyBlock();
-        paint(false, "Reminders need syncing", Store.hasSecret()
-          ? "Couldn't reach your server just now. Pull down to refresh and try again."
-          : "Unlock the ledger first — you need to enter your key on this device.");
+        paint(false, "Reminders need syncing", !Store.hasSecret()
+          ? "Enter your key above first — reminders are sent to your synced record."
+          : "Couldn't reach your server just now. Pull down to refresh and try again.");
         return;
       }
       b.disabled = false;
@@ -2221,10 +2220,12 @@ var Notify = (function(){
       paint(Boolean(sub), null, sub
         ? "This device will get the nudge at 6pm. Tap to turn it off."
         : "One tap. The nudge arrives at 6pm whether or not anything else is running.");
-      wired = true;
-      b.addEventListener("click", function(){
-        if(b.getAttribute("data-on") === "1") disable(); else enable();
-      });
+      if(!wired){
+        wired = true;
+        b.addEventListener("click", function(){
+          if(b.getAttribute("data-on") === "1") disable(); else enable();
+        });
+      }
     }
   };
 })();
