@@ -10,7 +10,10 @@ The app is live at:
 
 **https://iron-ledger-cade10.vercel.app**
 
-Deploy with `npm run build && npx vercel deploy --prod --yes`.
+Deploying: push to `main`. Vercel is connected to
+https://github.com/caidenallcoat-ship-it/iron-ledger and builds on every push,
+running `node build.mjs` itself. `npx vercel deploy --prod --yes` still works if
+you want to ship without committing.
 
 It began as a Claude Artifact; that URL now redirects to a "moved" notice.
 Access is a single shared secret, `LEDGER_KEY`, held in Vercel's environment

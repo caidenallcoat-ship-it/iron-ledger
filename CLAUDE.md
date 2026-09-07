@@ -13,7 +13,10 @@ as another section of this file.
 doctype/head/body tags, because both targets supply their own:
 
 - **Vercel (the live app)** — https://iron-ledger-cade10.vercel.app
-  `npm run build && npx vercel deploy --prod --yes` from this folder.
+  Deploys automatically on push to `main`; Vercel runs the build itself.
+  `npx vercel deploy --prod --yes` still works for an uncommitted change.
+  Always run `npm run build` before committing so the generated
+  `public/index.html` in the repo matches the source.
 - **Artifact** — RETIRED. The old artifact URL now shows a "moved" notice
   (`artifact-moved.html`). Do not publish the app there again.
 - **Vercel** — `npm run build` wraps it into `public/index.html` with the PWA
