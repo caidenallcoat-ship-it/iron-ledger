@@ -199,6 +199,33 @@
   .excuse-opt:hover{border-color:var(--miss)}
   .excuse-n{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--miss);font-weight:600}
 
+  /* rest timer — sticky, because you're scrolling the session while it runs */
+  .rest-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--iron);
+    color:var(--on-iron);display:flex;align-items:center;gap:14px;
+    padding:12px 18px calc(12px + env(safe-area-inset-bottom));
+    box-shadow:0 -2px 14px rgba(0,0,0,.25)}
+  .rest-bar[data-done="1"]{background:var(--done);color:#fff}
+  .rest-n{font-family:"Archivo Black",Arial,sans-serif;font-size:26px;line-height:1;
+    font-variant-numeric:tabular-nums;min-width:3.2ch}
+  .rest-lab{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.12em;
+    text-transform:uppercase;opacity:.7}
+  .rest-track{flex:1;height:5px;background:rgba(255,255,255,.22);min-width:40px}
+  .rest-fill{height:100%;background:currentColor;width:100%}
+  .rest-btn{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+    letter-spacing:.09em;text-transform:uppercase;padding:8px 11px;white-space:nowrap;
+    background:transparent;border:1px solid currentColor;color:inherit}
+  .rest-btn:hover{background:rgba(255,255,255,.14)}
+  body.resting{padding-bottom:74px}
+
+  /* load note */
+  .note-bar{padding:14px 20px;border-top:1px solid var(--line);background:var(--cue-bg);
+    display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+  .note-bar .field{flex:1;min-width:190px}
+  .note-last{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);
+    display:block;margin-top:4px}
+  .note-shown{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink2);
+    padding:10px 20px;border-top:1px dashed var(--line);background:var(--surface2)}
+
   /* unlock gate */
   .gate{position:fixed;inset:0;z-index:50;background:var(--ground);
     display:flex;align-items:center;justify-content:center;padding:24px}
@@ -431,6 +458,16 @@
     </div>
   </section>
 
+  <div class="rest-bar" id="rest-bar" hidden>
+    <div>
+      <div class="rest-lab" id="rest-lab">Rest</div>
+      <div class="rest-n" id="rest-n">1:30</div>
+    </div>
+    <div class="rest-track"><div class="rest-fill" id="rest-fill"></div></div>
+    <button class="rest-btn" type="button" id="rest-add">+15s</button>
+    <button class="rest-btn" type="button" id="rest-skip">Done</button>
+  </div>
+
   <div class="gate" id="gate" hidden>
     <div class="gate-box">
       <div class="eyebrow">Locked</div>
@@ -641,7 +678,7 @@ let TODAY = new Date(), TODAY_K = key(TODAY);
 let NOW_H = TODAY.getHours() + TODAY.getMinutes()/60;
 
 /* ---------- state ---------- */
-const BLANK = {start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null, target:3};
+const BLANK = {start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null, target:3, updatedAt:0};
 const LS_KEY = "iron-ledger-v2";
 let state = JSON.parse(JSON.stringify(BLANK));
 let db = null, docRef = null, expressMode = false, expressTouched = false;
@@ -661,7 +698,7 @@ function setSync(m){ const el=document.getElementById("sync-state"); if(el) el.t
    localStorage is always written first, so the page never loses a tap while
    the network decides what it's doing. */
 var Store = (function(){
-  var mode = "local", ref = null, secret = null, pushing = false, dirty = false;
+  var mode = "local", ref = null, secret = null, pushing = false, dirty = false, pendingPush = false;
 
   function readSecret(){ try{ return localStorage.getItem("iron-ledger-key") || null; }catch(e){ return null; } }
   function headers(withBody){
@@ -677,9 +714,18 @@ var Store = (function(){
     fetch("/api/state", {method:"PUT", headers:headers(true), body:JSON.stringify(state)})
       .then(function(r){
         if(!r.ok) throw new Error(String(r.status));
+        pendingPush = false;
         setSync("Synced — your record follows you to any device.");
       })
-      .catch(function(){ setSync("Saved on this device only — couldn't reach your server."); })
+      .catch(function(){
+        /* Keep it queued. This is a PWA that opens in a spare room with no
+           signal; a session that logs on the phone and never reaches the
+           server is worse than one that syncs late. */
+        pendingPush = true;
+        setSync(navigator.onLine
+          ? "Saved here — couldn't reach your server. Will retry."
+          : "Saved here — you're offline. It'll sync when you're back.");
+      })
       .then(function(){
         pushing = false;
         if(dirty){ dirty = false; pushApi(); }
@@ -771,11 +817,18 @@ var Store = (function(){
         .catch(function(){ onFail("Couldn't reach the server."); });
     },
 
-    goLocal: function(){ mode = "local"; setSync("Saved in this browser only."); }
+    goLocal: function(){ mode = "local"; setSync("Saved in this browser only."); },
+
+    /* Anything queued while offline goes out as soon as there's a connection. */
+    pending: function(){ return pendingPush; },
+    flush: function(){ if(pendingPush && mode === "api" && navigator.onLine) pushApi(); }
   };
 })();
 
 function save(){
+  /* Stamped so a stale copy from the server can't overwrite work this device
+     hasn't managed to push yet. */
+  state.updatedAt = Date.now();
   saveLocal();
   Store.push();
 }
@@ -1124,6 +1177,117 @@ function renderFigs(){
   }).join("");
 }
 
+/* ---------- rest timer ----------
+   Ticking a movement starts the clock, because that's the moment your hands
+   are free and you'd otherwise be counting in your head. */
+var Rest = (function(){
+  var total = 0, endAt = 0, tick = null, finished = false;
+
+  function el(id){ return document.getElementById(id); }
+  function mmss(s){
+    s = Math.max(0, Math.ceil(s));
+    return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0");
+  }
+
+  function beep(){
+    try{
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return;
+      const ctx = new Ctx(), osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = "sine"; osc.frequency.value = 660;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 0.5);
+      setTimeout(function(){ ctx.close().catch(function(){}); }, 900);
+    }catch(e){}
+    try{ if(navigator.vibrate) navigator.vibrate([120,60,120]); }catch(e){}
+  }
+
+  function paint(){
+    const left = (endAt - Date.now())/1000;
+    el("rest-n").textContent = mmss(left);
+    el("rest-fill").style.width = Math.max(0, Math.min(100, left/total*100)) + "%";
+    if(left <= 0 && !finished){
+      finished = true;
+      el("rest-bar").setAttribute("data-done","1");
+      el("rest-lab").textContent = "Go";
+      el("rest-n").textContent = "0:00";
+      beep();
+      setTimeout(Rest.stop, 6000);
+    }
+  }
+
+  return {
+    start: function(seconds){
+      total = seconds; endAt = Date.now() + seconds*1000; finished = false;
+      el("rest-bar").hidden = false;
+      el("rest-bar").removeAttribute("data-done");
+      el("rest-lab").textContent = "Rest";
+      document.body.classList.add("resting");
+      paint();
+      clearInterval(tick);
+      tick = setInterval(paint, 250);
+    },
+    stop: function(){
+      clearInterval(tick); tick = null;
+      el("rest-bar").hidden = true;
+      el("rest-bar").removeAttribute("data-done");
+      document.body.classList.remove("resting");
+    },
+    add: function(seconds){
+      if(el("rest-bar").hidden) return;
+      if(finished){ Rest.start(seconds); return; }
+      endAt += seconds*1000; total += seconds; paint();
+    },
+    running: function(){ return !el("rest-bar").hidden; }
+  };
+})();
+
+/* Peak weeks cut the rest to 60s; everything else gets 90s. */
+function restSeconds(){ return phaseFor(weekNumber()).i === 3 ? 60 : 90; }
+
+(function wireRest(){
+  document.getElementById("rest-add").addEventListener("click", function(){ Rest.add(15); });
+  document.getElementById("rest-skip").addEventListener("click", function(){ Rest.stop(); });
+})();
+
+/* ---------- keep the screen on mid-session ----------
+   The phone is on the floor and your hands are chalky. */
+var Wake = (function(){
+  var lock = null, want = false;
+  function acquire(){
+    if(!want || lock || !navigator.wakeLock) return;
+    navigator.wakeLock.request("screen").then(function(l){
+      lock = l;
+      l.addEventListener("release", function(){ lock = null; });
+    }).catch(function(){});
+  }
+  document.addEventListener("visibilitychange", function(){
+    if(document.visibilityState === "visible") acquire();
+  });
+  return {
+    set: function(on){
+      want = on;
+      if(on) acquire();
+      else if(lock){ lock.release().catch(function(){}); lock = null; }
+    }
+  };
+})();
+
+/* What you used last time you did this session — the only thing that makes
+   "add a rep, then go up a bell" mean anything. */
+function lastNoteFor(sessionKey){
+  const keys = Object.keys(state.done).sort().reverse();
+  for(let i=0;i<keys.length;i++){
+    if(keys[i] === TODAY_K) continue;   // today's own note is not "last time"
+    const r = state.done[keys[i]];
+    if(r && r.key === sessionKey && r.note) return {date:keys[i], note:r.note};
+  }
+  return null;
+}
+
 function renderTarget(){
   const t = weekTarget(), host = document.getElementById("target-bar");
   const why = t <= 2 ? "Low enough that life won't break it. Raise it once that feels easy."
@@ -1196,6 +1360,10 @@ function renderSession(){
       +'<span class="chip" data-v="'+(done?"done":"due")+'">'
       +(done ? "Complete" : expressMode ? "Short version" : "Due "+(isWorkday(TODAY)?fmtH(DAY.slot):fmtH(DAY.weekendSlot)))+'</span></div>'
     +'<div class="strip"><b>Warm-up</b><span>'+(expressMode ? "2 min rope, straight in" : s.warm)+'</span></div>'
+    +(function(){
+        const ln = lastNoteFor(sk);
+        return ln ? '<div class="note-shown">LAST TIME ('+esc(parseKey(ln.date).toLocaleDateString(undefined,{day:"numeric",month:"short"}))+') — '+esc(ln.note)+'</div>' : "";
+      })()
     +'<ul class="lifts">'+rows+'</ul>'
     +'<div class="strip"><b>Finisher</b><span>'+(expressMode ? "Skipped — that's the deal with the short version." : s.fin)+'</span></div>'
     +(!done && (lateish || expressMode)
@@ -1210,6 +1378,12 @@ function renderSession(){
       +(done ? '<button class="btn btn-ghost" type="button" id="undo-btn">Undo</button>'
              : '<button class="btn btn-ghost" type="button" id="skip-btn">I\'m skipping tonight</button>')
       +'<span class="act-note" id="tick-note">'+ticked.length+'/'+list.length+' ticked</span></div>'
+    +(done ? '<div class="note-bar"><div class="field">'
+        +'<label for="load-note">What did you use?</label>'
+        +'<input id="load-note" type="text" maxlength="80" placeholder="20kg, last set was ugly" value="'
+        + esc(state.done[TODAY_K].note || "") + '">'
+        +'<span class="note-last">Only for you to beat next time. Skip it if you like.</span>'
+        +'</div><button class="btn" type="button" id="note-save">Save</button></div>' : "")
     +'<div class="excuse" id="excuse-panel" hidden><p class="excuse-q">Name it. It goes in the ledger.</p>'
       +'<div class="excuse-opts">'+EXCUSES.map(function(e){
           const prev = state.skips.filter(function(x){ return x.reason === e; }).length;
@@ -1231,6 +1405,8 @@ function wireSession(count){
       state.ticks[TODAY_K] = cur;
       b.setAttribute("aria-checked", String(at < 0));
       document.getElementById("tick-note").textContent = cur.length+"/"+count+" ticked";
+      if(at < 0) Rest.start(restSeconds());        // ticked ON — you've just finished a set
+      Wake.set(cur.length > 0 && !state.done[TODAY_K]);
       save();
     }
     b.addEventListener("click", function(e){ if(e.target.closest(".how")) return; toggle(); });
@@ -1273,6 +1449,17 @@ function wireSession(count){
   const cancel = document.getElementById("ex-cancel");
   if(cancel) cancel.addEventListener("click", function(){ panel.hidden = true; if(skip) skip.hidden = false; });
 
+  const noteSave = document.getElementById("note-save");
+  if(noteSave) noteSave.addEventListener("click", function(){
+    const v = document.getElementById("load-note").value.trim();
+    if(state.done[TODAY_K]){
+      if(v) state.done[TODAY_K].note = v; else delete state.done[TODAY_K].note;
+      save();
+      noteSave.textContent = "Saved";
+      setTimeout(function(){ if(noteSave) noteSave.textContent = "Save"; }, 1500);
+    }
+  });
+
   document.querySelectorAll(".excuse-opt").forEach(function(b){
     b.addEventListener("click", function(){
       state.skips.push({date:TODAY_K, key:sessionOn(TODAY), reason:b.dataset.reason});
@@ -1287,6 +1474,8 @@ function logSession(k, sk, express){
   const st = currentStreak();
   if(st > state.longest) state.longest = st;
   expressMode = false;
+  Rest.stop();
+  Wake.set(false);
   save(); renderAll();
 }
 
@@ -1538,6 +1727,9 @@ wireAddJob();
 renderAll();
 
 function adoptRemote(d){
+  const mine = (state && state.updatedAt) || 0;
+  const theirs = (d && d.updatedAt) || 0;
+  if(theirs < mine){ Store.push(); return; }   // ours is newer — send, don't take
   state = Object.assign(JSON.parse(JSON.stringify(BLANK)), d);
   saveLocal();
   renderAll();
@@ -1572,12 +1764,18 @@ function showGate(msg){
 
 Store.start(adoptRemote, showGate);
 
+window.addEventListener("online", function(){ Store.flush(); });
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "visible") Store.flush();
+});
+
 /* The clock drives the nag, so keep it honest while the page sits open. */
 setInterval(function(){
   const now = new Date();
   const rolled = key(now) !== TODAY_K;
   TODAY = now; TODAY_K = key(now); NOW_H = now.getHours() + now.getMinutes()/60;
   if(rolled) expressMode = false;
+  Store.flush();
   /* Don't yank a half-typed job out from under them on the minute tick. */
   if(!rolled && document.querySelector(".job-edit:not([hidden])")) return;
   renderAll();
