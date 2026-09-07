@@ -6,9 +6,16 @@ sessions and overdue jobs, and keeps an honest count of both.
 
 ## Where it runs
 
-The app is published as a Claude Artifact:
+The app is live at:
 
-**https://claude.ai/code/artifact/250d7886-534d-47d2-bee5-f9e2634f72bf**
+**https://iron-ledger-cade10.vercel.app**
+
+Deploy with `npm run build && npx vercel deploy --prod --yes`.
+
+It began as a Claude Artifact; that URL now redirects to a "moved" notice.
+Access is a single shared secret, `LEDGER_KEY`, held in Vercel's environment
+variables and in `.env.local` locally (gitignored). The page is public; the
+record is not.
 
 `iron-ledger.html` in this repo is the source. Publishing sends it to that URL.
 The published page is wrapped in a minimal `<!doctype html><head>` skeleton at

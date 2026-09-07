@@ -2,3 +2,9 @@ _preview.html
 .DS_Store
 .vercel
 node_modules
+
+.vercel
+.env*
+.agents/
+.claude/skills/
+skills-lock.json

@@ -12,7 +12,10 @@ as another section of this file.
 `iron-ledger.html` is the ONLY file you edit. It is the app body with no
 doctype/head/body tags, because both targets supply their own:
 
-- **Artifact** — published straight from `iron-ledger.html`.
+- **Vercel (the live app)** — https://iron-ledger-cade10.vercel.app
+  `npm run build && npx vercel deploy --prod --yes` from this folder.
+- **Artifact** — RETIRED. The old artifact URL now shows a "moved" notice
+  (`artifact-moved.html`). Do not publish the app there again.
 - **Vercel** — `npm run build` wraps it into `public/index.html` with the PWA
   head (manifest, icons, theme colours, service worker). `public/index.html` is
   generated and gitignored; never edit it.
