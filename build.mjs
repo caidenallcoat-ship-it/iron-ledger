@@ -33,6 +33,8 @@ if (/<!doctype|<html[\s>]|<head[\s>]|<body[\s>]/i.test(src)) {
   process.exit(1);
 }
 
+const build = new Date().toISOString().slice(0, 16).replace("T", " ");
+
 const out = `<!doctype html>
 <html lang="en">
 <head>
@@ -53,9 +55,23 @@ ${head}
 <body>
 ${body}
 <script>
+window.__BUILD__ = ${JSON.stringify(build)};
 if ("serviceWorker" in navigator) {
   addEventListener("load", function () {
-    navigator.serviceWorker.register("/sw.js").catch(function () {});
+    navigator.serviceWorker.register("/sw.js").then(function (reg) {
+      // Check on every load, and again when the app is brought back to the front.
+      reg.update().catch(function () {});
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "visible") reg.update().catch(function () {});
+      });
+    }).catch(function () {});
+  });
+  // A new worker taking over means new code is ready — reload into it once.
+  var reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", function () {
+    if (reloaded) return;
+    reloaded = true;
+    location.reload();
   });
 }
 </script>

@@ -76,6 +76,30 @@
   .slot[data-now="1"] .slot-l{color:var(--ink);font-weight:500}
   .slot[data-past="1"]{opacity:.45}
 
+  /* section nav — sticky, scrolls sideways on a phone rather than wrapping
+     into three rows and eating the screen */
+  .secnav{position:sticky;top:0;z-index:30;display:flex;gap:0;overflow-x:auto;
+    background:var(--ground);border-bottom:1px solid var(--line);
+    margin:0 -20px;padding:0 20px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .secnav::-webkit-scrollbar{display:none}
+  .secnav a{flex:0 0 auto;font-family:"IBM Plex Mono",monospace;font-size:11px;
+    letter-spacing:.11em;text-transform:uppercase;color:var(--muted);text-decoration:none;
+    padding:12px 13px;border-bottom:2px solid transparent;white-space:nowrap}
+  .secnav a:hover{color:var(--ink)}
+  .secnav a[aria-current="true"]{color:var(--ink);border-bottom-color:var(--warn);font-weight:600}
+  section[id]{scroll-margin-top:52px}
+
+  /* collapsible reference sections */
+  details.fold > summary{list-style:none;cursor:pointer;display:flex;align-items:center;
+    justify-content:space-between;gap:12px}
+  details.fold > summary::-webkit-details-marker{display:none}
+  details.fold > summary::after{content:"Show";font-family:"IBM Plex Mono",monospace;
+    font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+    border:1px solid var(--line2);padding:4px 9px;white-space:nowrap}
+  details.fold[open] > summary::after{content:"Hide"}
+  details.fold > summary h2{margin:0}
+  details.fold > .fold-body{margin-top:12px}
+
   /* verdict */
   .verdict{background:var(--iron);color:var(--on-iron);padding:clamp(20px,3vw,28px);
     border-left:10px solid var(--warn);display:flex;flex-direction:column;gap:12px}
@@ -438,7 +462,21 @@
   @media (max-width:560px){
     .cue-row{grid-template-columns:1fr;gap:2px}
     .clock{grid-template-columns:repeat(2,1fr)}
-    .lift{flex-wrap:wrap}
+    .wrap{padding:14px 14px 64px;gap:20px}
+    .secnav{margin:0 -14px;padding:0 14px}
+    .verdict{padding:18px 16px}
+    .sess-top,.strip,.actions,.excuse,.note-bar,.cue{padding-left:16px;padding-right:16px}
+    ul.lifts > li .lift{padding:11px 16px;gap:10px;flex-wrap:wrap}
+    .lift-n{flex:1 1 100%;order:2}
+    .tick{order:1}
+    .lift-d{order:3;margin-left:auto}
+    .how{order:4}
+    .job{padding:11px 16px}
+    .job-n{flex:1 1 100%}
+    .box{padding:14px 16px}
+    ul.log li{grid-template-columns:1fr;gap:2px;padding:10px 15px}
+    ul.log .d{order:1}
+    .fig .n{font-size:24px}
   }
 </style>
 
@@ -451,6 +489,16 @@
     </div>
   </header>
 
+  <nav class="secnav" id="secnav" aria-label="Sections">
+    <a href="#s-today">Today</a>
+    <a href="#s-house">House</a>
+    <a href="#s-card">Card</a>
+    <a href="#s-excuses">Excuses</a>
+    <a href="#s-guide">How-to</a>
+    <a href="#s-prog">Programme</a>
+    <a href="#s-settings">Settings</a>
+  </nav>
+
   <section class="clock" id="clock"></section>
 
   <section class="verdict" id="verdict" data-sev="warn">
@@ -462,12 +510,12 @@
   <section class="figs" id="figs"></section>
   <div class="target-bar" id="target-bar"></div>
 
-  <section>
+  <section id="s-today">
     <div class="sec-head"><h2>Today</h2><p class="sec-note" id="today-note"></p></div>
     <div class="panel" id="session"></div>
   </section>
 
-  <section>
+  <section id="s-house">
     <div class="sec-head">
       <h2>The house</h2>
       <p class="sec-note">Not a streak — a clock. Each job shows how long it's actually been, and turns red once it's past due. Edit the timings to whatever you'll really hold to.</p>
@@ -483,7 +531,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="s-card">
     <div class="sec-head">
       <h2>Twelve weeks</h2>
       <p class="sec-note">Days you trained, and under each column a bar for whether that week cleared your target. A single empty day isn't a failure — a short week is. Click a past day to correct the record.</p>
@@ -502,7 +550,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="s-excuses">
     <div class="sec-head">
       <h2>Excuse ledger</h2>
       <p class="sec-note">Every skip you named, counted, with the date you last used it. This is the part you're meant to find uncomfortable.</p>
@@ -510,26 +558,30 @@
     <div class="box" id="ledger"></div>
   </section>
 
-  <section>
-    <div class="sec-head">
-      <h2>How to do everything</h2>
-      <p class="sec-note">Set-up, execution, and the one fault that catches most people. Read it sat down, not at half six with a bell in your hand.</p>
-    </div>
-    <div class="guide-list" id="guide-list"></div>
+  <section id="s-guide">
+    <details class="fold">
+      <summary><h2>How to do everything</h2></summary>
+      <div class="fold-body">
+        <p class="sec-note" style="margin-bottom:11px">Set-up, execution, and the one fault that catches most people. Read it sat down, not at half six with a bell in your hand.</p>
+        <div class="guide-list" id="guide-list"></div>
+      </div>
+    </details>
   </section>
 
-  <section>
-    <div class="sec-head">
-      <h2>The programme</h2>
-      <p class="sec-note">Five sessions sit on the plan, Wednesday and Sunday off — but the target above is how many you actually owe each week. Pick whichever fit. Eight-week block; the volume climbs.</p>
-    </div>
-    <div class="box">
-      <div class="prog-grid" id="prog-grid"></div>
-      <p class="phase-note" id="phase-note"></p>
-    </div>
+  <section id="s-prog">
+    <details class="fold">
+      <summary><h2>The programme</h2></summary>
+      <div class="fold-body">
+        <p class="sec-note" style="margin-bottom:11px">Five sessions sit on the plan, Wednesday and Sunday off — but the target above is how many you actually owe each week. Pick whichever fit. Eight-week block; the volume climbs.</p>
+        <div class="box">
+          <div class="prog-grid" id="prog-grid"></div>
+          <p class="phase-note" id="phase-note"></p>
+        </div>
+      </div>
+    </details>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="s-settings">
     <h2>Settings</h2>
     <div class="box appearance">
       <div>
@@ -547,6 +599,11 @@
         <p class="sec-note" id="mode-note" style="margin-top:8px"></p>
       </div>
       <p class="sec-note">Saved with your record, so it follows you to any device.</p>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Version</div>
+        <button class="btn" type="button" id="upd-btn">Check for updates</button>
+        <p class="sec-note" id="build-note" style="margin-top:8px"></p>
+      </div>
     </div>
   </section>
 
@@ -1408,6 +1465,51 @@ function applyAppearance(){
   else root.setAttribute("data-theme", mode);
   paintThemeColor();
 }
+
+(function wireNav(){
+  const nav = document.getElementById("secnav");
+  if(!nav) return;
+  const links = [].slice.call(nav.querySelectorAll("a"));
+  const ids = links.map(function(a){ return a.getAttribute("href").slice(1); });
+  function mark(){
+    let active = ids[0];
+    for(let i=0;i<ids.length;i++){
+      const el = document.getElementById(ids[i]);
+      if(el && el.getBoundingClientRect().top <= 90) active = ids[i];
+    }
+    links.forEach(function(a){
+      a.setAttribute("aria-current", a.getAttribute("href") === "#"+active ? "true" : "false");
+    });
+  }
+  addEventListener("scroll", mark, {passive:true});
+  addEventListener("resize", mark);
+  mark();
+})();
+
+(function wireUpdate(){
+  const note = document.getElementById("build-note");
+  const btn = document.getElementById("upd-btn");
+  if(note) note.textContent = "Build " + (window.__BUILD__ || "dev") + ".";
+  if(!btn) return;
+  btn.addEventListener("click", async function(){
+    btn.textContent = "Checking…";
+    try{
+      if("serviceWorker" in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(function(r){ return r.update(); }));
+        /* Nuclear option: drop the worker and its caches, then reload clean.
+           This is the button for when a phone is stubbornly holding an old
+           copy, which is exactly what it was added for. */
+        await Promise.all(regs.map(function(r){ return r.unregister(); }));
+        if(window.caches){
+          const keys = await caches.keys();
+          await Promise.all(keys.map(function(k){ return caches.delete(k); }));
+        }
+      }
+    }catch(e){}
+    location.reload(true);
+  });
+})();
 
 function renderAppearance(){
   const cur = state.scheme || "graphite", mode = state.mode || "system";
