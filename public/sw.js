@@ -1,7 +1,7 @@
 /* Offline shell for Iron Ledger.
    The app itself is cached so it opens without a connection; /api/state is
    never cached, because a stale record is worse than an honest error. */
-const CACHE = "iron-ledger-v3";
+const CACHE = "iron-ledger-v4";
 const SHELL = [
   "/",
   "/index.html",
