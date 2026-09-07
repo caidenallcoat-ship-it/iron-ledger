@@ -33,7 +33,9 @@ if (/<!doctype|<html[\s>]|<head[\s>]|<body[\s>]/i.test(src)) {
   process.exit(1);
 }
 
-const build = new Date().toISOString().slice(0, 16).replace("T", " ");
+// Full instant; the page formats it in the reader's own timezone, because a
+// UTC stamp shown to someone on BST reads as an hour stale.
+const build = new Date().toISOString();
 
 const out = `<!doctype html>
 <html lang="en">

@@ -1589,7 +1589,16 @@ function renderKeyBlock(){
 (function wireUpdate(){
   const note = document.getElementById("build-note");
   const btn = document.getElementById("upd-btn");
-  if(note) note.textContent = "Build " + (window.__BUILD__ || "dev") + ".";
+  if(note){
+    const b = window.__BUILD__;
+    let when = "dev";
+    if(b){
+      const d = new Date(b);
+      when = isNaN(d) ? b : d.toLocaleString(undefined,
+        {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
+    }
+    note.textContent = "Build " + when + " (your local time).";
+  }
   if(!btn) return;
   btn.addEventListener("click", async function(){
     btn.textContent = "Checking…";

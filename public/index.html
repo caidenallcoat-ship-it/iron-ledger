@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-07 13:42";</script>
+<script>window.__BUILD__ = "2026-09-07T13:43:26.303Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1606,7 +1606,16 @@ function renderKeyBlock(){
 (function wireUpdate(){
   const note = document.getElementById("build-note");
   const btn = document.getElementById("upd-btn");
-  if(note) note.textContent = "Build " + (window.__BUILD__ || "dev") + ".";
+  if(note){
+    const b = window.__BUILD__;
+    let when = "dev";
+    if(b){
+      const d = new Date(b);
+      when = isNaN(d) ? b : d.toLocaleString(undefined,
+        {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
+    }
+    note.textContent = "Build " + when + " (your local time).";
+  }
   if(!btn) return;
   btn.addEventListener("click", async function(){
     btn.textContent = "Checking…";
