@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-07 13:35";</script>
+<script>window.__BUILD__ = "2026-09-07 13:38";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -109,6 +109,15 @@
     padding:12px 13px;border-bottom:2px solid transparent;white-space:nowrap}
   .secnav a:hover{color:var(--ink)}
   .secnav a[aria-current="true"]{color:var(--ink);border-bottom-color:var(--warn);font-weight:600}
+  .secnav[data-r="1"][data-l="0"]{
+    -webkit-mask-image:linear-gradient(to right,#000 82%,transparent 100%);
+            mask-image:linear-gradient(to right,#000 82%,transparent 100%)}
+  .secnav[data-r="1"][data-l="1"]{
+    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 82%,transparent 100%);
+            mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 82%,transparent 100%)}
+  .secnav[data-r="0"][data-l="1"]{
+    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 7%);
+            mask-image:linear-gradient(to right,transparent 0,#000 7%)}
   section[id]{scroll-margin-top:calc(52px + env(safe-area-inset-top))}
 
   /* collapsible reference sections */
@@ -1522,6 +1531,26 @@ function applyAppearance(){
   if(!nav) return;
   const links = [].slice.call(nav.querySelectorAll("a"));
   const ids = links.map(function(a){ return a.getAttribute("href").slice(1); });
+  let lastActive = null;
+
+  /* Keep whichever tab is current actually on screen — the nav scrolls
+     sideways, and a highlight you can't see is worse than none. */
+  function reveal(a){
+    const nr = nav.getBoundingClientRect(), ar = a.getBoundingClientRect();
+    let delta = 0;
+    if(ar.left < nr.left + 10) delta = ar.left - nr.left - 10;
+    else if(ar.right > nr.right - 10) delta = ar.right - nr.right + 10;
+    if(!delta) return;
+    const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if(smooth && nav.scrollTo) nav.scrollTo({left: nav.scrollLeft + delta, behavior: "smooth"});
+    else nav.scrollLeft += delta;
+  }
+
+  function edges(){
+    nav.dataset.l = nav.scrollLeft > 4 ? "1" : "0";
+    nav.dataset.r = (nav.scrollLeft + nav.clientWidth) < (nav.scrollWidth - 4) ? "1" : "0";
+  }
+
   function mark(){
     /* The nav's own height varies with the phone's safe area, so measure it
        rather than guessing at a pixel value. */
@@ -1537,9 +1566,16 @@ function applyAppearance(){
     links.forEach(function(a){
       a.setAttribute("aria-current", a.getAttribute("href") === "#"+active ? "true" : "false");
     });
+    if(active !== lastActive){
+      lastActive = active;
+      const cur = links.filter(function(a){ return a.getAttribute("href") === "#"+active; })[0];
+      if(cur) reveal(cur);
+    }
+    edges();
   }
   addEventListener("scroll", mark, {passive:true});
   addEventListener("resize", mark);
+  nav.addEventListener("scroll", edges, {passive:true});
   mark();
 })();
 
