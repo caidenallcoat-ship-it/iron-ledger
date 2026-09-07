@@ -591,6 +591,11 @@
     <h2>Settings</h2>
     <div class="box appearance">
       <div>
+        <div class="eyebrow" style="margin-bottom:8px">Sync</div>
+        <button class="btn" type="button" id="key-btn">Enter your key</button>
+        <p class="sec-note" id="key-note" style="margin-top:8px"></p>
+      </div>
+      <div>
         <div class="eyebrow" style="margin-bottom:8px">Reminders</div>
         <button class="btn" type="button" id="notif-btn">Turn on 6pm reminders</button>
         <p class="sec-note" id="notif-note" style="margin-top:8px"></p>
@@ -631,7 +636,7 @@
       <input id="gate-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Ledger key">
       <div class="gate-actions">
         <button class="btn btn-primary" type="button" id="gate-save">Unlock</button>
-        <button class="btn btn-ghost" type="button" id="gate-skip">Use this device only</button>
+        <button class="btn btn-ghost" type="button" id="gate-skip">Skip for now</button>
       </div>
       <p class="gate-err" id="gate-err" hidden></p>
     </div>
@@ -1501,10 +1506,16 @@ function applyAppearance(){
   const links = [].slice.call(nav.querySelectorAll("a"));
   const ids = links.map(function(a){ return a.getAttribute("href").slice(1); });
   function mark(){
+    /* The nav's own height varies with the phone's safe area, so measure it
+       rather than guessing at a pixel value. */
+    const probe = nav.getBoundingClientRect().bottom + 2;
     let active = ids[0];
     for(let i=0;i<ids.length;i++){
       const el = document.getElementById(ids[i]);
-      if(el && el.getBoundingClientRect().top <= 90) active = ids[i];
+      if(!el) continue;
+      const r = el.getBoundingClientRect();
+      if(r.top <= probe) active = ids[i];
+      if(r.top <= probe && r.bottom > probe){ active = ids[i]; break; }
     }
     links.forEach(function(a){
       a.setAttribute("aria-current", a.getAttribute("href") === "#"+active ? "true" : "false");
@@ -1514,6 +1525,30 @@ function applyAppearance(){
   addEventListener("resize", mark);
   mark();
 })();
+
+/* Skipping the gate used to be a one-way door: no key, no way to ask for it
+   again short of clearing the site. This is the way back. */
+function renderKeyBlock(){
+  const btn = document.getElementById("key-btn");
+  const note = document.getElementById("key-note");
+  if(!btn || !note) return;
+  const has = Store.hasSecret(), mode = Store.mode();
+  if(has && mode === "api"){
+    btn.textContent = "Forget key on this device";
+    note.textContent = "Synced. Your record follows you to any device signed in with this key.";
+    btn.onclick = function(){
+      if(!confirm("Forget the key on this device? Your record stays on the server.")) return;
+      try{ localStorage.removeItem("iron-ledger-key"); }catch(e){}
+      location.reload();
+    };
+  } else {
+    btn.textContent = "Enter your key";
+    note.textContent = has
+      ? "Saved on this device. Couldn't reach the server — tap to re-enter your key."
+      : "This device isn't synced. Everything is saved here only, and reminders can't work.";
+    btn.onclick = function(){ showGate(null); };
+  }
+}
 
 (function wireUpdate(){
   const note = document.getElementById("build-note");
@@ -1997,6 +2032,7 @@ function renderAll(){
   renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
   renderSession(); renderHouse(); renderCal(); renderLedger(); renderProgramme();
   renderAppearance();
+  renderKeyBlock();
 }
 
 /* ---------- reset ---------- */
@@ -2105,6 +2141,7 @@ var Notify = (function(){
 
       if(Store.mode() !== "api"){
         b.disabled = true;
+        renderKeyBlock();
         paint(false, "Reminders need syncing", Store.hasSecret()
           ? "Couldn't reach your server just now. Pull down to refresh and try again."
           : "Unlock the ledger first — you need to enter your key on this device.");
