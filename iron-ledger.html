@@ -184,6 +184,90 @@
   .excuse-opt:hover{border-color:var(--miss)}
   .excuse-n{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--miss);font-weight:600}
 
+
+  /* ---------- schemes ----------
+     Graphite is the bare :root above. Each alternative overrides only the
+     neutrals and the accent; done/missed stay semantic in every scheme, or the
+     card and the pills would start lying. Each needs all three states: light,
+     system-dark, and explicitly-chosen dark. */
+
+  /* Chalk — warm paper, ink accent. Reads like a gym wall notice. */
+  :root[data-scheme="chalk"]{
+    --ground:#E8E4DA; --surface:#F6F3EC; --surface2:#EDE9DF;
+    --ink:#171512; --ink2:#423D35; --muted:#736C60;
+    --line:#CFC8B9; --line2:#B3AA98;
+    --iron:#2B2721; --on-iron:#F6F3EC;
+    --warn:#8A5A12; --warn-soft:#EBDCC0; --cue-bg:#EFEBE1;
+  }
+  /* Midnight — cool and dark whatever the system says. */
+  :root[data-scheme="midnight"]{
+    --ground:#0E1319; --surface:#161D26; --surface2:#1E2734;
+    --ink:#E6ECF2; --ink2:#AEBAC7; --muted:#7C8998;
+    --line:#26313D; --line2:#3A4757;
+    --iron:#C6D2DE; --on-iron:#0E1319;
+    --warn:#4E9BD1; --warn-soft:#12293A; --cue-bg:#111823;
+    --done:#4FAD86; --done-soft:#12312A; --miss:#E0655B; --miss-soft:#341A19; --grim:#F0796A;
+  }
+  /* Rust — warm iron oxide, the one that looks like the kit. */
+  :root[data-scheme="rust"]{
+    --ground:#E3DDD6; --surface:#F3EFEA; --surface2:#E9E3DB;
+    --ink:#1A1512; --ink2:#463B34; --muted:#75685F;
+    --line:#CCC2B7; --line2:#B0A396;
+    --iron:#33261F; --on-iron:#F3EFEA;
+    --warn:#A8471B; --warn-soft:#EFD8C8; --cue-bg:#ECE6DE;
+  }
+
+  @media (prefers-color-scheme: dark){
+    :root[data-scheme="chalk"]:not([data-theme="light"]){
+      --ground:#16150F; --surface:#201E16; --surface2:#2A2820;
+      --ink:#EFEADD; --ink2:#BDB6A6; --muted:#8C8577;
+      --line:#35322A; --line2:#4A463C;
+      --iron:#D8D2C2; --on-iron:#16150F;
+      --warn:#D9A648; --warn-soft:#3A2C13; --cue-bg:#191811;
+    }
+    :root[data-scheme="rust"]:not([data-theme="light"]){
+      --ground:#151110; --surface:#1F1A17; --surface2:#2A231F;
+      --ink:#EEE6E0; --ink2:#BEB1A8; --muted:#8C7F76;
+      --line:#342B26; --line2:#4A3E37;
+      --iron:#DCCEC4; --on-iron:#151110;
+      --warn:#E0703C; --warn-soft:#3B2115; --cue-bg:#181413;
+    }
+  }
+
+  :root[data-scheme="chalk"][data-theme="dark"]{
+    --ground:#16150F; --surface:#201E16; --surface2:#2A2820;
+    --ink:#EFEADD; --ink2:#BDB6A6; --muted:#8C8577;
+    --line:#35322A; --line2:#4A463C;
+    --iron:#D8D2C2; --on-iron:#16150F;
+    --warn:#D9A648; --warn-soft:#3A2C13; --cue-bg:#191811;
+  }
+  :root[data-scheme="rust"][data-theme="dark"]{
+    --ground:#151110; --surface:#1F1A17; --surface2:#2A231F;
+    --ink:#EEE6E0; --ink2:#BEB1A8; --muted:#8C7F76;
+    --line:#342B26; --line2:#4A3E37;
+    --iron:#DCCEC4; --on-iron:#151110;
+    --warn:#E0703C; --warn-soft:#3B2115; --cue-bg:#181413;
+  }
+
+  /* appearance controls */
+  .appearance{display:flex;flex-direction:column;gap:14px}
+  .swatches{display:flex;gap:9px;flex-wrap:wrap}
+  .sw{display:flex;flex-direction:column;gap:6px;align-items:center;
+    padding:9px 11px;border:1px solid var(--line2);background:var(--surface);cursor:pointer}
+  .sw[aria-pressed="true"]{border-color:var(--ink);border-width:2px;padding:8px 10px}
+  .sw-chips{display:flex;gap:3px}
+  .sw-chip{width:15px;height:15px;border:1px solid rgba(128,128,128,.35)}
+  .sw-name{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted)}
+  .sw[aria-pressed="true"] .sw-name{color:var(--ink);font-weight:600}
+  .seg{display:flex;border:1px solid var(--line2);width:max-content}
+  .seg button{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.09em;
+    text-transform:uppercase;padding:8px 14px;background:transparent;color:var(--muted);
+    border:0;border-right:1px solid var(--line2)}
+  .seg button:last-child{border-right:0}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--ground);font-weight:600}
+  .seg button:disabled{opacity:.4;cursor:default}
+
   /* rest timer — sticky, because you're scrolling the session while it runs */
   .rest-bar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--iron);
     color:var(--on-iron);display:flex;align-items:center;gap:14px;
@@ -445,6 +529,22 @@
     </div>
   </section>
 
+  <section class="panel">
+    <h2>Appearance</h2>
+    <div class="box appearance">
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Scheme</div>
+        <div class="swatches" id="swatches"></div>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Light or dark</div>
+        <div class="seg" id="modeseg"></div>
+        <p class="sec-note" id="mode-note" style="margin-top:8px"></p>
+      </div>
+      <p class="sec-note">Saved with your record, so it follows you to any device.</p>
+    </div>
+  </section>
+
   <div class="rest-bar" id="rest-bar" hidden>
     <div>
       <div class="rest-lab" id="rest-lab">Rest</div>
@@ -668,7 +768,7 @@ let TODAY = new Date(), TODAY_K = key(TODAY);
 let NOW_H = TODAY.getHours() + TODAY.getMinutes()/60;
 
 /* ---------- state ---------- */
-const BLANK = {start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null, target:3, updatedAt:0};
+const BLANK = {start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null, target:3, updatedAt:0, scheme:"graphite", mode:"system"};
 const LS_KEY = "iron-ledger-v2";
 let state = JSON.parse(JSON.stringify(BLANK));
 let db = null, docRef = null, expressMode = false, expressTouched = false;
@@ -1279,6 +1379,69 @@ function lastNoteFor(sessionKey){
   return null;
 }
 
+const SCHEMES = [
+  {id:"graphite", name:"Graphite", chips:["#2E3338","#E4E3DE","#B87213"]},
+  {id:"chalk",    name:"Chalk",    chips:["#2B2721","#E8E4DA","#8A5A12"]},
+  {id:"midnight", name:"Midnight", chips:["#0E1319","#1E2734","#4E9BD1"], alwaysDark:true},
+  {id:"rust",     name:"Rust",     chips:["#33261F","#E3DDD6","#A8471B"]}
+];
+const MODES = [{id:"system",name:"System"},{id:"light",name:"Light"},{id:"dark",name:"Dark"}];
+
+/* The phone's status bar picks this up, so keep it honest per scheme. */
+function paintThemeColor(){
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--ground").trim();
+  document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){ m.remove(); });
+  const m = document.createElement("meta");
+  m.name = "theme-color"; m.content = bg || "#2E3338";
+  document.head.appendChild(m);
+}
+
+function applyAppearance(){
+  const root = document.documentElement;
+  const scheme = state.scheme || "graphite";
+  const mode = state.mode || "system";
+  if(scheme === "graphite") root.removeAttribute("data-scheme");
+  else root.setAttribute("data-scheme", scheme);
+  if(mode === "system") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", mode);
+  paintThemeColor();
+}
+
+function renderAppearance(){
+  const cur = state.scheme || "graphite", mode = state.mode || "system";
+
+  document.getElementById("swatches").innerHTML = SCHEMES.map(function(sc){
+    return '<button class="sw" type="button" data-scheme="'+sc.id+'" aria-pressed="'+(sc.id===cur)+'">'
+      +'<span class="sw-chips">'+sc.chips.map(function(c){
+          return '<span class="sw-chip" style="background:'+c+'"></span>'; }).join("")+'</span>'
+      +'<span class="sw-name">'+sc.name+'</span></button>';
+  }).join("");
+
+  const scheme = SCHEMES.filter(function(x){ return x.id === cur; })[0];
+  const seg = document.getElementById("modeseg");
+  seg.innerHTML = MODES.map(function(m){
+    return '<button type="button" data-mode="'+m.id+'" aria-pressed="'+(m.id===mode)+'"'
+      + (scheme && scheme.alwaysDark ? ' disabled' : '') + '>'+m.name+'</button>';
+  }).join("");
+  /* Say it plainly rather than let the control look broken. */
+  const note = document.getElementById("mode-note");
+  note.textContent = scheme && scheme.alwaysDark
+    ? "Midnight is dark whatever you pick — that's the point of it."
+    : "";
+
+  document.querySelectorAll("[data-scheme]").forEach(function(b){
+    if(b.tagName !== "BUTTON") return;
+    b.addEventListener("click", function(){
+      state.scheme = b.dataset.scheme; applyAppearance(); save(); renderAppearance();
+    });
+  });
+  document.querySelectorAll("#modeseg [data-mode]").forEach(function(b){
+    b.addEventListener("click", function(){
+      state.mode = b.dataset.mode; applyAppearance(); save(); renderAppearance();
+    });
+  });
+}
+
 function renderTarget(){
   const t = weekTarget(), host = document.getElementById("target-bar");
   const why = t <= 2 ? "Low enough that life won't break it. Raise it once that feels easy."
@@ -1700,6 +1863,7 @@ function renderProgramme(){
 function renderAll(){
   renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
   renderSession(); renderHouse(); renderCal(); renderLedger(); renderProgramme();
+  renderAppearance();
 }
 
 /* ---------- reset ---------- */
@@ -1713,6 +1877,7 @@ document.getElementById("reset-btn").addEventListener("click", function(){
 /* ---------- boot ---------- */
 const local = loadLocal();
 if(local) state = local;
+applyAppearance();
 renderGuide();
 wireAddJob();
 renderAll();
@@ -1809,6 +1974,7 @@ function adoptRemote(d){
   if(theirs < mine){ Store.push(); return; }   // ours is newer — send, don't take
   state = Object.assign(JSON.parse(JSON.stringify(BLANK)), d);
   saveLocal();
+  applyAppearance();
   renderAll();
 }
 
