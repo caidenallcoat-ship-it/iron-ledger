@@ -1,0 +1,11 @@
+{
+  "name": "iron-ledger",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Training and household accountability tracker",
+  "scripts": {
+    "build": "node build.mjs",
+    "preview": "node build.mjs && python -m http.server 8766 --directory public"
+  }
+}

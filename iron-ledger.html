@@ -184,6 +184,19 @@
   .excuse-opt:hover{border-color:var(--miss)}
   .excuse-n{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--miss);font-weight:600}
 
+  /* unlock gate */
+  .gate{position:fixed;inset:0;z-index:50;background:var(--ground);
+    display:flex;align-items:center;justify-content:center;padding:24px}
+  .gate-box{max-width:420px;width:100%;display:flex;flex-direction:column;gap:13px}
+  .gate-box h2{font-size:clamp(21px,4vw,27px);line-height:1.15;letter-spacing:-.015em}
+  .gate-box p{margin:0;color:var(--ink2);font-size:14.5px;max-width:52ch}
+  .gate-box code{font-family:"IBM Plex Mono",monospace;font-size:13px;
+    background:var(--surface2);padding:1px 5px}
+  .gate-box input{font-family:"IBM Plex Mono",monospace;font-size:15px;padding:11px 12px;
+    border:1px solid var(--line2);background:var(--surface);color:var(--ink);width:100%}
+  .gate-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .gate-err{color:var(--miss);font-size:13.5px;font-weight:500}
+
   /* weekly target */
   .target-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:-14px;
     padding:11px 15px;border:1px solid var(--line);border-top:0;background:var(--surface2)}
@@ -402,6 +415,20 @@
     </div>
   </section>
 
+  <div class="gate" id="gate" hidden>
+    <div class="gate-box">
+      <div class="eyebrow">Locked</div>
+      <h2>This ledger needs your key.</h2>
+      <p>It syncs through your own server. Paste the value you set as <code>LEDGER_KEY</code> — once per device, then it remembers.</p>
+      <input id="gate-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Ledger key">
+      <div class="gate-actions">
+        <button class="btn btn-primary" type="button" id="gate-save">Unlock</button>
+        <button class="btn btn-ghost" type="button" id="gate-skip">Use this device only</button>
+      </div>
+      <p class="gate-err" id="gate-err" hidden></p>
+    </div>
+  </div>
+
   <footer>
     <span id="sync-state">Working out where to save your record…</span>
     <button class="link-btn" id="reset-btn" type="button">Wipe the ledger</button>
@@ -610,11 +637,131 @@ function loadLocal(){
 }
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
 function setSync(m){ const el=document.getElementById("sync-state"); if(el) el.textContent=m; }
+/* ---------- where the record lives ----------
+   Three homes, chosen at runtime so one source file serves both deployments:
+     artifact — running inside claude.ai, using its database
+     api      — deployed standalone, talking to this app's own /api/state
+     local    — neither is reachable; this browser only.
+   localStorage is always written first, so the page never loses a tap while
+   the network decides what it's doing. */
+var Store = (function(){
+  var mode = "local", ref = null, secret = null, pushing = false, dirty = false;
+
+  function readSecret(){ try{ return localStorage.getItem("iron-ledger-key") || null; }catch(e){ return null; } }
+  function headers(withBody){
+    var h = {}; if(secret) h["x-ledger-key"] = secret;
+    if(withBody) h["Content-Type"] = "application/json";
+    return h;
+  }
+  function usable(d){ return d && typeof d === "object" && d.done; }
+
+  function pushApi(){
+    if(pushing){ dirty = true; return; }
+    pushing = true;
+    fetch("/api/state", {method:"PUT", headers:headers(true), body:JSON.stringify(state)})
+      .then(function(r){
+        if(!r.ok) throw new Error(String(r.status));
+        setSync("Synced — your record follows you to any device.");
+      })
+      .catch(function(){ setSync("Saved on this device only — couldn't reach your server."); })
+      .then(function(){
+        pushing = false;
+        if(dirty){ dirty = false; pushApi(); }
+      });
+  }
+
+  return {
+    mode: function(){ return mode; },
+
+    setSecret: function(k){
+      secret = k;
+      try{ localStorage.setItem("iron-ledger-key", k); }catch(e){}
+    },
+
+    push: function(){
+      if(mode === "artifact" && ref){
+        ref.set(state).catch(function(e){
+          setSync("Saved on this device only — the shared record refused the write ("+e.code+").");
+        });
+      } else if(mode === "api"){
+        pushApi();
+      }
+    },
+
+    /* apply(doc) adopts a remote record; askForKey() shows the unlock gate. */
+    start: function(apply, askForKey){
+      if(window.claude && window.claude.use){
+        window.claude.use("db").then(function(store){
+          if(!store){ Store.startApi(apply, askForKey); return; }
+          mode = "artifact";
+          db = store; ref = db.doc("tracker/state"); docRef = ref;
+          ref.onSnapshot(function(snap){
+            if(snap.exists){ if(usable(snap.data())) apply(snap.data()); }
+            else ref.set(state).catch(function(){});
+            setSync("Synced — your record follows you to any device.");
+          }, function(e){
+            setSync("Saved on this device only — the shared record is unavailable ("+e.code+").");
+          });
+        }).catch(function(){ Store.startApi(apply, askForKey); });
+        return;
+      }
+      Store.startApi(apply, askForKey);
+    },
+
+    startApi: function(apply, askForKey){
+      secret = readSecret();
+      fetch("/api/state", {method:"GET", headers:headers(false)})
+        .then(function(r){
+          if(r.status === 401){ mode = "api"; askForKey(null); return null; }
+          if(r.status === 503){
+            mode = "local";
+            return r.json().then(function(j){
+              setSync("Server reached, but not set up yet: " + (j && j.error === "key_not_configured"
+                ? "LEDGER_KEY isn't set." : "no database is connected."));
+              return null;
+            });
+          }
+          if(!r.ok) throw new Error(String(r.status));
+          mode = "api";
+          return r.json();
+        })
+        .then(function(d){
+          if(mode !== "api") return;
+          if(usable(d)) apply(d); else Store.push();
+          setSync("Synced — your record follows you to any device.");
+        })
+        .catch(function(){
+          mode = "local";
+          setSync("Saved in this browser only.");
+        });
+    },
+
+    /* Called after the gate is filled in. */
+    unlock: function(k, apply, onFail){
+      Store.setSecret(k);
+      fetch("/api/state", {method:"GET", headers:headers(false)})
+        .then(function(r){
+          if(r.status === 401){ onFail("That key was rejected."); return null; }
+          if(!r.ok){ onFail("Server error " + r.status + "."); return null; }
+          mode = "api";
+          return r.json();
+        })
+        .then(function(d){
+          if(mode !== "api") return;
+          if(usable(d)) apply(d); else Store.push();
+          setSync("Synced — your record follows you to any device.");
+          onFail(null);
+        })
+        .catch(function(){ onFail("Couldn't reach the server."); });
+    },
+
+    goLocal: function(){ mode = "local"; setSync("Saved in this browser only."); }
+  };
+})();
+
 function save(){
   saveLocal();
-  if(docRef) docRef.set(state).catch(function(e){
-    setSync("Saved on this device only — the shared record refused the write ("+e.code+").");
-  });
+  Store.push();
 }
 
 /* ---------- derived ---------- */
@@ -1374,28 +1521,40 @@ renderGuide();
 wireAddJob();
 renderAll();
 
-(function(){
-  if(typeof window.claude === "undefined" || !window.claude.use){ setSync("Saved in this browser only."); return; }
-  window.claude.use("db").then(function(store){
-    if(!store){ setSync("Saved in this browser only."); return; }
-    db = store;
-    docRef = db.doc("tracker/state");
-    docRef.onSnapshot(function(snap){
-      if(snap.exists){
-        const d = snap.data();
-        if(d && d.done){
-          state = Object.assign(JSON.parse(JSON.stringify(BLANK)), d);
-          saveLocal(); renderAll();
-        }
-      } else if(local){
-        docRef.set(state).catch(function(){});
-      }
-      setSync("Synced — your record follows you to any device.");
-    }, function(e){
-      setSync("Saved on this device only — the shared record is unavailable ("+e.code+").");
+function adoptRemote(d){
+  state = Object.assign(JSON.parse(JSON.stringify(BLANK)), d);
+  saveLocal();
+  renderAll();
+}
+
+function showGate(msg){
+  const gate = document.getElementById("gate"), err = document.getElementById("gate-err");
+  gate.hidden = false;
+  err.hidden = !msg;
+  if(msg) err.textContent = msg;
+  document.getElementById("gate-key").focus();
+}
+
+(function wireGate(){
+  const gate = document.getElementById("gate");
+  document.getElementById("gate-save").addEventListener("click", function(){
+    const k = document.getElementById("gate-key").value.trim();
+    if(!k) return;
+    Store.unlock(k, adoptRemote, function(problem){
+      if(problem) showGate(problem);
+      else gate.hidden = true;
     });
-  }).catch(function(){ setSync("Saved in this browser only."); });
+  });
+  document.getElementById("gate-key").addEventListener("keydown", function(e){
+    if(e.key === "Enter") document.getElementById("gate-save").click();
+  });
+  document.getElementById("gate-skip").addEventListener("click", function(){
+    gate.hidden = true;
+    Store.goLocal();
+  });
 })();
+
+Store.start(adoptRemote, showGate);
 
 /* The clock drives the nag, so keep it honest while the page sits open. */
 setInterval(function(){

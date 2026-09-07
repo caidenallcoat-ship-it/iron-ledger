@@ -1,2 +1,5 @@
 _preview.html
 .DS_Store
+public/index.html
+.vercel
+node_modules

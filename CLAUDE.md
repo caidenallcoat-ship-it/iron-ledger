@@ -7,9 +7,25 @@ or a separate chore app. A duplicate was built by accident on 2026-09-07 by a
 parallel session and had to be merged back in by hand. New areas of life go in
 as another section of this file.
 
+## Two deployments, one source
+
+`iron-ledger.html` is the ONLY file you edit. It is the app body with no
+doctype/head/body tags, because both targets supply their own:
+
+- **Artifact** — published straight from `iron-ledger.html`.
+- **Vercel** — `npm run build` wraps it into `public/index.html` with the PWA
+  head (manifest, icons, theme colours, service worker). `public/index.html` is
+  generated and gitignored; never edit it.
+
+Storage is chosen at runtime by `Store` in the script: the Artifact database
+when `window.claude` exists, else `/api/state` (see `api/state.js`), else
+localStorage. Adding a field means checking all three paths still work.
+
+See DEPLOY.md for the Vercel setup.
+
 ## Publishing
 
-`iron-ledger.html` is the source of truth. Publish it to the existing artifact:
+Publish `iron-ledger.html` to the existing artifact:
 
     Artifact tool, url: https://claude.ai/code/artifact/250d7886-534d-47d2-bee5-f9e2634f72bf
 
