@@ -2093,7 +2093,10 @@ function renderAll(){
   renderSession(); renderHouse(); renderCal(); renderLedger(); renderProgramme();
   renderAppearance();
   renderKeyBlock();
-  Notify.init();
+  /* renderAll runs once during boot, before this module is assigned, so this
+     has to tolerate its absence — otherwise it throws and takes the rest of
+     the boot script (including the gate wiring) down with it. */
+  if(typeof Notify !== "undefined") Notify.init();
 }
 
 /* ---------- reset ---------- */
@@ -2107,6 +2110,11 @@ document.getElementById("reset-btn").addEventListener("click", function(){
 /* ---------- boot ---------- */
 const local = loadLocal();
 if(local) state = local;
+window.addEventListener("error", function(e){
+  const el = document.getElementById("sync-state");
+  if(el) el.textContent = "Something broke in the app: " + (e.message || "unknown") + ". Tell Claude.";
+});
+
 applyAppearance();
 renderGuide();
 wireAddJob();

@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-07T14:14:47.554Z";</script>
+<script>window.__BUILD__ = "2026-09-07T14:17:54.820Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2110,7 +2110,10 @@ function renderAll(){
   renderSession(); renderHouse(); renderCal(); renderLedger(); renderProgramme();
   renderAppearance();
   renderKeyBlock();
-  Notify.init();
+  /* renderAll runs once during boot, before this module is assigned, so this
+     has to tolerate its absence — otherwise it throws and takes the rest of
+     the boot script (including the gate wiring) down with it. */
+  if(typeof Notify !== "undefined") Notify.init();
 }
 
 /* ---------- reset ---------- */
@@ -2124,6 +2127,11 @@ document.getElementById("reset-btn").addEventListener("click", function(){
 /* ---------- boot ---------- */
 const local = loadLocal();
 if(local) state = local;
+window.addEventListener("error", function(e){
+  const el = document.getElementById("sync-state");
+  if(el) el.textContent = "Something broke in the app: " + (e.message || "unknown") + ". Tell Claude.";
+});
+
 applyAppearance();
 renderGuide();
 wireAddJob();
