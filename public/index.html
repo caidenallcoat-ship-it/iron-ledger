@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-08T15:07:51.923Z";</script>
+<script>window.__BUILD__ = "2026-09-08T15:21:41.644Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -202,6 +202,23 @@
   @media (max-width:400px){
     .ring-wrap{height:356px}
   }
+
+  /* collapsed ring: the compact switcher that replaces the tab bar */
+  .ring-wrap{overflow:hidden;transition:height .32s cubic-bezier(.22,1,.36,1),opacity .22s}
+  .ring-wrap[data-collapsed="1"]{height:0 !important;opacity:0;pointer-events:none}
+  .ring-strip{position:sticky;top:env(safe-area-inset-top);z-index:30;display:none;
+    align-items:center;gap:10px;padding:9px 4px;background:var(--ground);
+    border-bottom:1px solid var(--line);cursor:pointer}
+  .ring-strip[data-show="1"]{display:flex}
+  .strip-dots{display:flex;gap:7px;align-items:center}
+  .strip-dot{width:13px;height:13px;border-radius:50%;border:1.5px solid currentColor;
+    background:transparent;padding:0;flex:0 0 auto;transition:transform .2s}
+  .strip-dot[data-on="1"]{transform:scale(1.45)}
+  .strip-dot[data-fill="1"]{background:currentColor}
+  .strip-name{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--ink);font-weight:600}
+  .strip-hint{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:10px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 
   /* verdict */
   .verdict{background:var(--iron);color:var(--on-iron);padding:clamp(20px,3vw,28px);
@@ -604,19 +621,12 @@
     </div>
   </header>
 
-  <nav class="secnav" id="secnav" aria-label="Sections">
-    <a href="#s-ring">Ring</a>
-    <a href="#s-today">Today</a>
-    <a href="#s-day">Day</a>
-    <a href="#s-money">Money</a>
-    <a href="#s-house">House</a>
-    <a href="#s-people">People</a>
-    <a href="#s-card">Card</a>
-    <a href="#s-excuses">Excuses</a>
-    <a href="#s-guide">How-to</a>
-    <a href="#s-prog">Programme</a>
-    <a href="#s-settings">Settings</a>
-  </nav>
+  <div class="ring-strip" id="ring-strip" role="button" tabindex="0"
+       aria-label="Show the ring">
+    <span class="strip-dots" id="strip-dots"></span>
+    <span class="strip-name" id="strip-name"></span>
+    <span class="strip-hint">Tap for the ring</span>
+  </div>
 
   <section id="s-ring">
     <div class="ring-wrap" id="ring" role="group" aria-label="Life areas">
@@ -635,38 +645,6 @@
     <div class="ring-panel" id="ring-panel"></div>
   </section>
 
-  <section class="verdict" id="verdict" data-sev="warn">
-    <div class="eyebrow" id="v-eyebrow">Reading the record</div>
-    <p class="v-line" id="v-line">Working out what you've actually done.</p>
-    <p class="v-sub" id="v-sub"></p>
-  </section>
-
-  <section id="s-today">
-    <div class="sec-head"><h2>Today</h2><p class="sec-note" id="today-note"></p></div>
-    <div class="panel" id="session"></div>
-  </section>
-
-  <section class="clock" id="clock"></section>
-
-  <section class="figs" id="figs"></section>
-  <div class="target-bar" id="target-bar"></div>
-
-  <section id="s-day">
-    <div class="sec-head">
-      <h2>The day</h2>
-      <p class="sec-note">Three taps. Eating and sleep are the two things that decide whether the training does anything.</p>
-    </div>
-    <div class="panel" id="day-panel"></div>
-  </section>
-
-  <section id="s-money">
-    <div class="sec-head">
-      <h2>Money</h2>
-      <p class="sec-note">A weekly ceiling, not a budget. Add what you spend as you go — no categories, no receipts.</p>
-    </div>
-    <div class="panel" id="money-panel"></div>
-  </section>
-
   <section id="s-house">
     <div class="sec-head">
       <h2>The house</h2>
@@ -683,6 +661,97 @@
     </div>
   </section>
 
+  <section id="s-train">
+    <section class="verdict" id="verdict" data-sev="warn">
+      <div class="eyebrow" id="v-eyebrow">Reading the record</div>
+      <p class="v-line" id="v-line">Working out what you've actually done.</p>
+      <p class="v-sub" id="v-sub"></p>
+    </section>
+
+    <section id="s-today">
+      <div class="sec-head"><h2>Today</h2><p class="sec-note" id="today-note"></p></div>
+      <div class="panel" id="session"></div>
+    </section>
+
+    <section class="clock" id="clock"></section>
+
+    <section class="figs" id="figs"></section>
+    <div class="target-bar" id="target-bar"></div>
+
+    <section id="s-card">
+      <div class="sec-head">
+        <h2>Twelve weeks</h2>
+        <p class="sec-note">Days you trained, and under each column a bar for whether that week cleared your target. No day is compulsory — only the week is. Click a past day to correct the record.</p>
+      </div>
+      <div class="box">
+        <div class="cal-scroll"><div class="cal" id="cal"></div></div>
+        <div class="legend">
+          <span><i class="key" style="background:var(--done)"></i>Trained</span>
+          <span><i class="key" style="background:var(--done);opacity:.5"></i>Short version</span>
+          <span><i class="key" style="background:var(--surface2)"></i>No session</span>
+          <span><i class="key" style="background:var(--warn)"></i>Due today</span>
+          <span style="margin-left:auto"><i class="key" style="background:var(--done);height:5px"></i>Week hit target</span>
+          <span><i class="key" style="background:var(--miss);height:5px"></i>Week fell short</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="s-excuses">
+      <div class="sec-head">
+        <h2>Excuse ledger</h2>
+        <p class="sec-note">Every skip you named, counted, with the date you last used it. This is the part you're meant to find uncomfortable.</p>
+      </div>
+      <div class="box" id="ledger"></div>
+    </section>
+
+    <section id="s-guide">
+      <details class="fold">
+        <summary><h2>How to do everything</h2></summary>
+        <div class="fold-body">
+          <p class="sec-note" style="margin-bottom:11px">Set-up, execution, and the one fault that catches most people. Read it sat down, not at half six with a bell in your hand.</p>
+          <div class="guide-list" id="guide-list"></div>
+        </div>
+      </details>
+    </section>
+
+    <section id="s-prog">
+      <details class="fold">
+        <summary><h2>The programme</h2></summary>
+        <div class="fold-body">
+          <p class="sec-note" style="margin-bottom:11px">Five sessions in a fixed cycle. You train on whatever days suit; the next session is always the next one in the loop, so nothing gets skipped just because you never train on a Thursday. The target above is how many you owe each week. Eight-week block; the volume climbs.</p>
+          <div class="box">
+            <div class="prog-grid" id="prog-grid"></div>
+            <p class="phase-note" id="phase-note"></p>
+          </div>
+        </div>
+      </details>
+    </section>
+  </section>
+
+  <section id="s-eat">
+    <div class="sec-head">
+      <h2>Eating</h2>
+      <p class="sec-note">Two taps. Both have to be ticked for the day to count.</p>
+    </div>
+    <div class="panel" id="eat-panel"></div>
+  </section>
+
+  <section id="s-money">
+    <div class="sec-head">
+      <h2>Money</h2>
+      <p class="sec-note">A weekly ceiling, not a budget. Add what you spend as you go — no categories, no receipts.</p>
+    </div>
+    <div class="panel" id="money-panel"></div>
+  </section>
+
+  <section id="s-sleep">
+    <div class="sec-head">
+      <h2>Sleep</h2>
+      <p class="sec-note">One tap. The thing that decides whether the training does anything.</p>
+    </div>
+    <div class="panel" id="sleep-panel"></div>
+  </section>
+
   <section id="s-people">
     <div class="sec-head">
       <h2>People</h2>
@@ -697,55 +766,6 @@
       </div>
       <div class="job-edit" id="person-form" hidden></div>
     </div>
-  </section>
-
-  <section id="s-card">
-    <div class="sec-head">
-      <h2>Twelve weeks</h2>
-      <p class="sec-note">Days you trained, and under each column a bar for whether that week cleared your target. No day is compulsory — only the week is. Click a past day to correct the record.</p>
-    </div>
-    <div class="box">
-      <div class="cal-scroll"><div class="cal" id="cal"></div></div>
-      <div class="legend">
-        <span><i class="key" style="background:var(--done)"></i>Trained</span>
-        <span><i class="key" style="background:var(--done);opacity:.5"></i>Short version</span>
-        <span><i class="key" style="background:var(--surface2)"></i>No session</span>
-        <span><i class="key" style="background:var(--warn)"></i>Due today</span>
-        <span style="margin-left:auto"><i class="key" style="background:var(--done);height:5px"></i>Week hit target</span>
-        <span><i class="key" style="background:var(--miss);height:5px"></i>Week fell short</span>
-      </div>
-    </div>
-  </section>
-
-  <section id="s-excuses">
-    <div class="sec-head">
-      <h2>Excuse ledger</h2>
-      <p class="sec-note">Every skip you named, counted, with the date you last used it. This is the part you're meant to find uncomfortable.</p>
-    </div>
-    <div class="box" id="ledger"></div>
-  </section>
-
-  <section id="s-guide">
-    <details class="fold">
-      <summary><h2>How to do everything</h2></summary>
-      <div class="fold-body">
-        <p class="sec-note" style="margin-bottom:11px">Set-up, execution, and the one fault that catches most people. Read it sat down, not at half six with a bell in your hand.</p>
-        <div class="guide-list" id="guide-list"></div>
-      </div>
-    </details>
-  </section>
-
-  <section id="s-prog">
-    <details class="fold">
-      <summary><h2>The programme</h2></summary>
-      <div class="fold-body">
-        <p class="sec-note" style="margin-bottom:11px">Five sessions in a fixed cycle. You train on whatever days suit; the next session is always the next one in the loop, so nothing gets skipped just because you never train on a Thursday. The target above is how many you owe each week. Eight-week block; the volume climbs.</p>
-        <div class="box">
-          <div class="prog-grid" id="prog-grid"></div>
-          <p class="phase-note" id="phase-note"></p>
-        </div>
-      </div>
-    </details>
   </section>
 
   <section class="panel" id="s-settings">
@@ -816,7 +836,10 @@
 
   <footer>
     <span id="sync-state">Working out where to save your record…</span>
-    <button class="link-btn" id="reset-btn" type="button">Wipe the ledger</button>
+    <span class="foot-actions">
+      <button class="link-btn" id="open-settings" type="button">Settings</button>
+      <button class="link-btn" id="reset-btn" type="button">Wipe the ledger</button>
+    </span>
   </footer>
 </div>
 
@@ -2290,43 +2313,63 @@ function wireAddJob(){
 
 
 /* ---------- the day ---------- */
-function renderDay(){
-  const host = document.getElementById("day-panel");
-  if(!host) return;
-  const cfg = areaCfg(), m = marks(TODAY_K);
-  const eatT = cfg.eat.target, slpT = cfg.sleep.target, by = cfg.sleep.by;
-  const eatW = eatWeek(), slpW = sleepWeek();
-  const clear = eatW >= eatT && slpW >= slpT;
+function dayRow(field, label, meta, on){
+  return '<li><div class="lift" role="checkbox" tabindex="0" aria-checked="' + on + '" data-mark="' + field + '">'
+    + '<span class="tick"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8.5 6 12.5 14 3.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+    + '<span class="lift-n">' + label + '</span>'
+    + '<span class="lift-d">' + meta + '</span></div></li>';
+}
 
-  function row(field, label, meta, on){
-    return '<li><div class="lift" role="checkbox" tabindex="0" aria-checked="' + on + '" data-mark="' + field + '">'
-      + '<span class="tick"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8.5 6 12.5 14 3.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
-      + '<span class="lift-n">' + label + '</span>'
-      + '<span class="lift-d">' + meta + '</span></div></li>';
-  }
-
-  host.innerHTML =
-    '<div class="sess-top"><div><h3 class="sess-title">Today</h3>'
-      + '<p class="sess-sub">Eating ' + eatW + '/' + eatT + ' &middot; Sleep ' + slpW + '/' + slpT + '</p></div>'
-      + '<span class="chip" data-v="' + (clear ? "done" : "due") + '">' + (clear ? "Week clear" : "This week") + '</span></div>'
-    + '<ul class="lifts">'
-      + row("protein", "Protein at every meal", "eating", Boolean(m.protein))
-      + row("nojunk", "Nothing you would rather not admit to", "eating", Boolean(m.nojunk))
-      + row("bed", "In bed by " + fmtH(by), "sleep", Boolean(m.bed))
-    + '</ul>'
-    + '<div class="strip"><b>Eating</b><span>' + eatW + ' of ' + eatT + ' days this week &mdash; both marks have to be ticked for a day to count.</span></div>'
-    + '<div class="strip"><b>Sleep</b><span>' + slpW + ' of ' + slpT + ' days this week.</span></div>';
-
+function wireMarks(host){
   host.querySelectorAll("[data-mark]").forEach(function(b){
     const field = b.dataset.mark;
     function toggle(){
       setMark(TODAY_K, field, b.getAttribute("aria-checked") !== "true");
-      save(); renderDay();
+      save(); renderEat(); renderSleep(); renderRing();
     }
     b.addEventListener("click", toggle);
     b.addEventListener("keydown", function(e){
       if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggle(); }
     });
+  });
+}
+
+function renderEat(){
+  const host = document.getElementById("eat-panel");
+  if(!host) return;
+  const t = areaCfg().eat.target, w = eatWeek(), m = marks(TODAY_K);
+  host.innerHTML =
+    '<div class="sess-top"><div><h3 class="sess-title">Eating</h3>'
+      + '<p class="sess-sub">' + w + ' of ' + t + ' days this week</p></div>'
+      + '<span class="chip" data-v="' + (w >= t ? "done" : "due") + '">' + (w >= t ? "Week clear" : "Today") + '</span></div>'
+    + '<ul class="lifts">'
+      + dayRow("protein", "Protein at every meal", "", Boolean(m.protein))
+      + dayRow("nojunk", "Nothing you would rather not admit to", "", Boolean(m.nojunk))
+    + '</ul>'
+    + '<div class="strip"><b>Rule</b><span>Both marks, or the day does not count.</span></div>';
+  wireMarks(host);
+}
+
+function renderSleep(){
+  const host = document.getElementById("sleep-panel");
+  if(!host) return;
+  const cfg = areaCfg(), t = cfg.sleep.target, by = cfg.sleep.by, w = sleepWeek(), m = marks(TODAY_K);
+  host.innerHTML =
+    '<div class="sess-top"><div><h3 class="sess-title">Sleep</h3>'
+      + '<p class="sess-sub">' + w + ' of ' + t + ' nights this week</p></div>'
+      + '<span class="chip" data-v="' + (w >= t ? "done" : "due") + '">' + (w >= t ? "Week clear" : "Tonight") + '</span></div>'
+    + '<ul class="lifts">'
+      + dayRow("bed", "In bed by " + fmtH(by), "", Boolean(m.bed))
+    + '</ul>'
+    + '<div class="actions"><span class="act-note">Target ' + fmtH(by)
+      + ' <button class="link-btn" type="button" id="bed-edit">change</button></span></div>';
+  wireMarks(host);
+  const be = document.getElementById("bed-edit");
+  if(be) be.addEventListener("click", function(){
+    const v = prompt("In bed by which hour? (24-hour, e.g. 23)", String(areaCfg().sleep.by));
+    if(v === null) return;
+    const n = parseInt(v, 10);
+    if(n >= 18 && n <= 26){ areaCfg().sleep.by = n; save(); renderSleep(); renderRing(); }
   });
 }
 
@@ -2535,7 +2578,7 @@ const AREAS = [
               : worst.name + " is " + plural(choreOver(worst),"day") + " past due. " + over + " of " + all.length + " behind.")
             : "Every job is inside its window." };
     }},
-  { id:"train", name:"Training", label:"Training", colour:"--area-train", target:"#s-today",
+  { id:"train", name:"Training", label:"Training", colour:"--area-train", target:"#s-train",
     icon:"M4 7v6M16 7v6M7 5v10M13 5v10M7 10h6",
     read:function(){
       const t = weekTarget(), w = sessionsThisWeek(), left = daysLeftThisWeek();
@@ -2547,7 +2590,7 @@ const AREAS = [
           : risk ? w + " of " + t + " with " + plural(left,"day") + " left. Every one counts now."
           : w + " of " + t + " this week. Next up is " + nextDueText(true) + "." };
     }},
-  { id:"eat", name:"Eating", label:"Eating", colour:"--area-eat", target:"#s-day",
+  { id:"eat", name:"Eating", label:"Eating", colour:"--area-eat", target:"#s-eat",
     icon:"M6 3v7a2 2 0 0 0 4 0V3M8 10v7M14 3c-1.5 1-2 3-2 5s.5 3 2 3v6",
     read:function(){
       const t = areaCfg().eat.target, w = eatWeek();
@@ -2567,7 +2610,7 @@ const AREAS = [
         note: over ? "You're " + money(spent - cap) + " over the " + money(cap) + " cap with the week not finished."
           : money(spent) + " of " + money(cap) + " spent." };
     }},
-  { id:"sleep", name:"Sleep", label:"Sleep", colour:"--area-sleep", target:"#s-day",
+  { id:"sleep", name:"Sleep", label:"Sleep", colour:"--area-sleep", target:"#s-sleep",
     icon:"M15.5 11.5A6 6 0 0 1 8 4a6.5 6.5 0 1 0 7.5 7.5z",
     read:function(){
       const t = areaCfg().sleep.target, w = sleepWeek(), by = areaCfg().sleep.by;
@@ -2590,7 +2633,7 @@ const AREAS = [
     }}
 ];
 
-let ringRot = 0, ringFocus = 0, ringDragging = false;
+let ringRot = -60, ringFocus = 1, ringDragging = false;   // opens on Training
 
 function ringSlots(){
   return AREAS.map(function(a, i){
@@ -2650,16 +2693,28 @@ function buildRing(){
   });
 }
 
+/* The six area sections, in ring order. Only the focused one is in the
+   document flow - the ring is the navigation now, so stacking all of them
+   would just recreate the scroll it replaced. */
+const AREA_SECTIONS = ["#s-house", "#s-train", "#s-eat", "#s-money", "#s-sleep", "#s-people"];
+
+function showFocusedSection(){
+  AREA_SECTIONS.forEach(function(sel, i){
+    const el = document.querySelector(sel);
+    if(el) el.hidden = (i !== ringFocus);
+  });
+  const set = document.getElementById("s-settings");
+  if(set) set.hidden = !settingsOpen;
+}
+
+let settingsOpen = false;
+
 function focusArea(i, jump){
   ringFocus = i;
   ringRot = -60 * i;
+  settingsOpen = false;
   renderRing();
-  if(!jump) return;
-  const t = document.querySelector(AREAS[i].target);
-  if(t) t.scrollIntoView({
-    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-    block: "start"
-  });
+  showFocusedSection();
 }
 
 function renderRing(){
@@ -2711,15 +2766,65 @@ function renderRing(){
       + (fr.state === "behind" ? fr.status : fr.state === "clear" ? "on track - " + fr.status : fr.status)
       + '</span></div>'
     + '<p class="ring-note">' + esc(fr.note) + '</p>'
-    + '<div class="ring-go"><button class="btn" type="button" id="ring-goto">Open ' + focus.name + '</button></div>';
+    ;
+}
 
-  document.getElementById("ring-goto").addEventListener("click", function(){
-    const t = document.querySelector(focus.target);
-    if(t) t.scrollIntoView({
-      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-      block: "start"
+let ringCollapsed = false;
+
+function setRingCollapsed(on){
+  if(ringCollapsed === on) return;
+  ringCollapsed = on;
+  const wrap = document.getElementById("ring");
+  const strip = document.getElementById("ring-strip");
+  if(!wrap || !strip) return;
+  wrap.setAttribute("data-collapsed", on ? "1" : "0");
+  strip.setAttribute("data-show", on ? "1" : "0");
+  if(on) renderStrip();
+}
+
+function renderStrip(){
+  const dots = document.getElementById("strip-dots");
+  const name = document.getElementById("strip-name");
+  if(!dots || !name) return;
+  dots.innerHTML = AREAS.map(function(a, i){
+    const r = a.read();
+    return '<button class="strip-dot" type="button" data-si="' + i + '"'
+      + ' data-on="' + (i === ringFocus ? 1 : 0) + '"'
+      + ' data-fill="' + (r.state === "behind" ? 1 : 0) + '"'
+      + ' style="color:var(' + a.colour + ')"'
+      + ' aria-label="' + esc(a.name + " - " + r.status) + '"></button>';
+  }).join("");
+  name.textContent = AREAS[ringFocus].name;
+  dots.querySelectorAll("[data-si]").forEach(function(b){
+    b.addEventListener("click", function(e){
+      e.stopPropagation();
+      focusArea(Number(b.dataset.si), false);
+      renderStrip();
     });
   });
+}
+
+function wireRingCollapse(){
+  const strip = document.getElementById("ring-strip");
+  if(strip){
+    function open(){
+      setRingCollapsed(false);
+      window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+    }
+    strip.addEventListener("click", open);
+    strip.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); open(); }
+    });
+  }
+  /* Scrolling into the content folds the ring away; coming back up brings it
+     back. The strip stays, so you can still change area either way. */
+  let lastY = window.scrollY;
+  addEventListener("scroll", function(){
+    const y = window.scrollY;
+    if(y > 150 && y > lastY + 4) setRingCollapsed(true);
+    else if(y < 60 || y < lastY - 24) setRingCollapsed(false);
+    lastY = y;
+  }, {passive:true});
 }
 
 function wireRing(){
@@ -2782,6 +2887,19 @@ function wireRing(){
    The record lives in the database, so a deploy can't touch it. This is for
    the cases that aren't a deploy: a bad restore, a mistaken wipe, or simply
    not wanting to take anyone's word for it. */
+function wireSettingsLink(){
+  const b = document.getElementById("open-settings");
+  if(!b) return;
+  b.addEventListener("click", function(){
+    settingsOpen = !settingsOpen;
+    showFocusedSection();
+    if(settingsOpen){
+      const el = document.getElementById("s-settings");
+      if(el) el.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"});
+    }
+  });
+}
+
 function wireBackup(){
   const note = document.getElementById("backup-note");
   const exp = document.getElementById("export-btn");
@@ -2881,7 +2999,9 @@ function renderProgramme(){
 function renderAll(){
   renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
   renderRing();
-  renderSession(); renderDay(); renderMoney(); renderHouse(); renderPeople();
+  renderSession(); renderEat(); renderSleep(); renderMoney(); renderHouse(); renderPeople();
+  showFocusedSection();
+  if(ringCollapsed) renderStrip();
   renderCal(); renderLedger(); renderProgramme();
   renderAppearance();
   renderKeyBlock();
@@ -2912,7 +3032,9 @@ renderGuide();
 wireAddJob();
 wireAddPerson();
 wireRing();
+wireRingCollapse();
 wireBackup();
+wireSettingsLink();
 renderAll();
 
 /* ---------- push notifications ----------
