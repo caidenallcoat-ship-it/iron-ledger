@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-08T14:09:36.143Z";</script>
+<script>window.__BUILD__ = "2026-09-08T14:16:17.880Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -624,7 +624,6 @@
         <circle cx="140" cy="140" r="122" fill="none" stroke="var(--surface2)" stroke-width="18"></circle>
         <circle cx="140" cy="140" r="122" fill="none" stroke="var(--line2)" stroke-width="7"
                 stroke-dasharray="1 12.77" stroke-linecap="round"></circle>
-        <path id="ring-needle" d="M140 3 l6.5 11 h-13 z" fill="var(--ink)"></path>
       </svg>
       <div class="hub">
         <div class="hub-when" id="hub-when">GOOD EVENING</div>
@@ -2666,7 +2665,6 @@ function renderRing(){
   });
 
   const focus = AREAS[ringFocus], fr = focus.read();
-  document.getElementById("ring-needle").setAttribute("fill", "var(" + focus.colour + ")");
 
   const panel = document.getElementById("ring-panel");
   panel.style.borderTopColor = "var(" + focus.colour + ")";
