@@ -2588,20 +2588,77 @@ function greeting(){
   return "Good evening";
 }
 
+let ringNodes = null;
+
+/* Build the discs once. They used to be destroyed and recreated on every
+   render - including mid-drag - so a real touch (which always has a pixel or
+   two of wobble) replaced the element under the finger before it lifted, and
+   the browser never fired a click. Nothing happened at all. */
+function buildRing(){
+  const wrap = document.getElementById("ring");
+  if(!wrap) return;
+  ringNodes = AREAS.map(function(a, i){
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "disc";
+    b.setAttribute("data-i", i);
+
+    const clip = document.createElement("span");
+    clip.className = "disc-clip";
+    const fill = document.createElement("span");
+    fill.className = "disc-fill";
+    clip.appendChild(fill);
+    b.appendChild(clip);
+
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.setAttribute("class", "disc-icon");
+    icon.setAttribute("viewBox", "0 0 20 20");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", a.icon);
+    icon.appendChild(path);
+    b.appendChild(icon);
+
+    const lab = document.createElement("span");
+    lab.className = "disc-label";
+    lab.textContent = a.label;
+
+    b.addEventListener("click", function(){
+      if(ringDragging) return;      // a real drag ended here, not a tap
+      focusArea(i, true);
+    });
+
+    wrap.appendChild(b);
+    wrap.appendChild(lab);
+    return { b: b, lab: lab, fill: fill, icon: icon };
+  });
+}
+
+function focusArea(i, jump){
+  ringFocus = i;
+  ringRot = -60 * i;
+  renderRing();
+  if(!jump) return;
+  const t = document.querySelector(AREAS[i].target);
+  if(t) t.scrollIntoView({
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    block: "start"
+  });
+}
+
 function renderRing(){
   const wrap = document.getElementById("ring");
   if(!wrap) return;
-  const slots = ringSlots();
+  if(!ringNodes) buildRing();
+  if(!ringNodes) return;
 
   document.getElementById("hub-when").textContent = greeting().toUpperCase();
   document.getElementById("hub-date").textContent =
     TODAY.toLocaleDateString(undefined, {weekday:"short", day:"numeric", month:"short"}).toUpperCase();
 
-  wrap.querySelectorAll(".disc, .disc-label").forEach(function(n){ n.remove(); });
+  const slots = ringSlots();
 
   AREAS.forEach(function(a, i){
-    const r = a.read();
-    const s = slots[i];
+    const n = ringNodes[i], r = a.read(), sl = slots[i];
     const focused = i === ringFocus;
     const col = "var(" + a.colour + ")";
 
@@ -2610,54 +2667,25 @@ function renderRing(){
     else if(r.state === "clear") shadows.push("0 0 0 3px var(--done-soft)");
     if(focused) shadows.push("0 0 0 " + (shadows.length ? "6px" : "3px") + " rgba(0,0,0,.10)");
 
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "disc";
-    b.setAttribute("data-i", i);
-    b.setAttribute("aria-label", a.name + " - " + r.status + (r.state === "behind" ? ", behind" : ""));
-    b.style.borderColor = col;
-    b.style.borderWidth = focused ? "2px" : "1.5px";
-    b.style.boxShadow = shadows.join(", ");
-    b.style.transform = "translate(calc(-50% + " + s.x.toFixed(1) + "px), calc(-50% + "
-      + s.y.toFixed(1) + "px)) scale(" + (focused ? 1.14 : 1) + ")";
+    n.b.style.borderColor = col;
+    n.b.style.borderWidth = focused ? "2px" : "1.5px";
+    n.b.style.boxShadow = shadows.join(", ");
+    n.b.style.transform = "translate(calc(-50% + " + sl.x.toFixed(1) + "px), calc(-50% + "
+      + sl.y.toFixed(1) + "px)) scale(" + (focused ? 1.14 : 1) + ")";
+    n.b.setAttribute("aria-label", a.name + " - " + r.status + (r.state === "behind" ? ", behind" : ""));
 
-    const clip = document.createElement("span");
-    clip.className = "disc-clip";
-    const fill = document.createElement("span");
-    fill.className = "disc-fill";
-    fill.style.height = Math.max(0, Math.min(100, r.pct)) + "%";
-    fill.style.background = col;
-    fill.style.opacity = ".85";
-    clip.appendChild(fill);
-    b.appendChild(clip);
+    n.fill.style.height = Math.max(0, Math.min(100, r.pct)) + "%";
+    n.fill.style.background = col;
+    n.fill.style.opacity = ".85";
+    n.icon.setAttribute("stroke", r.pct > 55 ? "var(--surface)" : col);
 
-    b.insertAdjacentHTML("beforeend",
-      '<svg class="disc-icon" viewBox="0 0 20 20" stroke="' + (r.pct > 55 ? "var(--surface)" : col) + '">'
-      + '<path d="' + a.icon + '"></path></svg>');
-
-    const lab = document.createElement("span");
-    lab.className = "disc-label";
-    lab.textContent = a.label;
-    lab.setAttribute("data-focus", focused ? "1" : "0");
-    lab.style.top = "172px";
-    lab.style.transform = "translate(calc(-50% + " + s.x.toFixed(1) + "px), calc(-50% + "
-      + (s.y + (s.y < -2 ? -40 : 32)).toFixed(1) + "px))";
-
-    b.addEventListener("click", function(){
-      if(ringDragging) return;
-      ringFocus = i;
-      ringRot = -60 * i;
-      renderRing();
-      const t = document.querySelector(a.target);
-      if(t) t.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"});
-    });
-
-    wrap.appendChild(b);
-    wrap.appendChild(lab);
+    n.lab.setAttribute("data-focus", focused ? "1" : "0");
+    n.lab.style.top = "172px";
+    n.lab.style.transform = "translate(calc(-50% + " + sl.x.toFixed(1) + "px), calc(-50% + "
+      + (sl.y + (sl.y < -2 ? -40 : 32)).toFixed(1) + "px))";
   });
 
   const focus = AREAS[ringFocus], fr = focus.read();
-
   const panel = document.getElementById("ring-panel");
   panel.style.borderTopColor = "var(" + focus.colour + ")";
   panel.innerHTML =
@@ -2670,14 +2698,17 @@ function renderRing(){
 
   document.getElementById("ring-goto").addEventListener("click", function(){
     const t = document.querySelector(focus.target);
-    if(t) t.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"});
+    if(t) t.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start"
+    });
   });
 }
 
 function wireRing(){
   const wrap = document.getElementById("ring");
   if(!wrap) return;
-  let startAng = 0, baseRot = 0, moved = false, active = false;
+  let startAng = 0, baseRot = 0, moved = false, active = false, startedOn = -1;
 
   function angle(e){
     const r = wrap.getBoundingClientRect();
@@ -2688,7 +2719,10 @@ function wireRing(){
     let d = angle(e) - startAng;
     while(d > 180) d -= 360;
     while(d < -180) d += 360;
-    if(Math.abs(d) > 3){ moved = true; ringDragging = true; wrap.classList.add("dragging"); }
+    /* 6 degrees, not 3 pixels: a thumb resting on a disc wobbles, and every
+       wobble used to count as a drag. */
+    if(Math.abs(d) > 6){ moved = true; ringDragging = true; wrap.classList.add("dragging"); }
+    if(!moved) return;
     ringRot = baseRot + d;
     renderRing();
   }
@@ -2697,21 +2731,32 @@ function wireRing(){
     active = false;
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
     wrap.classList.remove("dragging");
+
     if(moved){
       const steps = Math.round(ringRot / 60);
       ringRot = steps * 60;
       ringFocus = ((-steps % 6) + 6) % 6;
       renderRing();
+      /* Swallow the click the browser sends after a drag. */
+      setTimeout(function(){ ringDragging = false; }, 80);
+      return;
     }
-    /* Let the click that follows a real drag be swallowed, but allow a tap. */
-    setTimeout(function(){ ringDragging = false; }, moved ? 60 : 0);
+
+    ringDragging = false;
+    /* Handle the tap here as well as via click: on touch the click can be
+       lost, and doing it twice is harmless because focusArea is idempotent. */
+    if(startedOn > -1) focusArea(startedOn, true);
   }
   wrap.addEventListener("pointerdown", function(e){
     active = true; moved = false;
+    const d = e.target.closest ? e.target.closest(".disc") : null;
+    startedOn = d ? Number(d.getAttribute("data-i")) : -1;
     startAng = angle(e); baseRot = ringRot;
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   });
 }
 
