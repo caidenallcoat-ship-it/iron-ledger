@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-08T14:16:17.880Z";</script>
+<script>window.__BUILD__ = "2026-09-08T14:20:37.568Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -771,6 +771,15 @@
         <p class="sec-note" id="mode-note" style="margin-top:8px"></p>
       </div>
       <p class="sec-note">Saved with your record, so it follows you to any device.</p>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Backup</div>
+        <div class="gate-actions">
+          <button class="btn" type="button" id="export-btn">Download a copy</button>
+          <button class="btn" type="button" id="import-btn">Restore from a file</button>
+        </div>
+        <input id="import-file" type="file" accept="application/json,.json" hidden>
+        <p class="sec-note" id="backup-note" style="margin-top:8px"></p>
+      </div>
       <div>
         <div class="eyebrow" style="margin-bottom:8px">Version</div>
         <button class="btn" type="button" id="upd-btn">Check for updates</button>
@@ -2723,6 +2732,71 @@ function wireRing(){
   });
 }
 
+
+/* ---------- backup ----------
+   The record lives in the database, so a deploy can't touch it. This is for
+   the cases that aren't a deploy: a bad restore, a mistaken wipe, or simply
+   not wanting to take anyone's word for it. */
+function wireBackup(){
+  const note = document.getElementById("backup-note");
+  const exp = document.getElementById("export-btn");
+  const imp = document.getElementById("import-btn");
+  const file = document.getElementById("import-file");
+  if(!exp || !imp || !file) return;
+
+  function say(msg){ if(note) note.textContent = msg; }
+  say("Everything you've logged, as one file. Nothing leaves your device unless you send it somewhere.");
+
+  exp.addEventListener("click", function(){
+    try{
+      const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "iron-ledger-" + TODAY_K + ".json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+      say("Saved as iron-ledger-" + TODAY_K + ".json.");
+    }catch(e){
+      say("Couldn't build the file: " + (e.message || e));
+    }
+  });
+
+  imp.addEventListener("click", function(){ file.click(); });
+
+  file.addEventListener("change", function(){
+    const f = file.files && file.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      let incoming;
+      try{ incoming = JSON.parse(reader.result); }
+      catch(e){ say("That isn't a valid backup file."); file.value = ""; return; }
+      if(!incoming || typeof incoming !== "object" || !incoming.done){
+        say("That file doesn't look like an Iron Ledger backup.");
+        file.value = ""; return;
+      }
+      const sessions = Object.keys(incoming.done || {}).length;
+      const jobs = (incoming.chores || []).length;
+      if(!confirm("Replace everything currently logged with this file?\n\n"
+        + sessions + " sessions, " + jobs + " jobs.\n\nThis cannot be undone.")){
+        file.value = ""; return;
+      }
+      state = Object.assign(JSON.parse(JSON.stringify(BLANK)), incoming);
+      state.updatedAt = Date.now();
+      saveLocal();
+      Store.push();
+      applyAppearance();
+      renderAll();
+      say("Restored " + sessions + " sessions and " + jobs + " jobs.");
+      file.value = "";
+    };
+    reader.readAsText(f);
+  });
+}
+
 function renderGuide(){
   const host = document.getElementById("guide-list");
   host.innerHTML = Object.keys(CUES).map(function(id){
@@ -2793,6 +2867,7 @@ renderGuide();
 wireAddJob();
 wireAddPerson();
 wireRing();
+wireBackup();
 renderAll();
 
 /* ---------- push notifications ----------
