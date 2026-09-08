@@ -115,6 +115,74 @@
   details.fold > summary h2{margin:0}
   details.fold > .fold-body{margin-top:12px}
 
+
+  /* ---------- the ring ----------
+     Six life areas on a dial. Colour here is wayfinding only: the six area
+     hues are deliberately NOT the semantic green/amber/red, so a disc can
+     never look like it is reporting a state it isn't. State lives in the halo
+     and in the fill, using --done and --miss like everywhere else. */
+  :root{
+    --area-house:#4A6FA5; --area-train:#7A5EA8; --area-eat:#2E8B8B;
+    --area-money:#8C6A3F; --area-sleep:#5B5379; --area-people:#6E7C33;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --area-house:#7FA3D6; --area-train:#AE92DC; --area-eat:#5FBDBD;
+      --area-money:#C39B62; --area-sleep:#8B7BC0; --area-people:#A3B84F;
+    }
+  }
+  :root[data-theme="dark"]{
+    --area-house:#7FA3D6; --area-train:#AE92DC; --area-eat:#5FBDBD;
+    --area-money:#C39B62; --area-sleep:#8B7BC0; --area-people:#A3B84F;
+  }
+
+  .ring-wrap{position:relative;height:344px;touch-action:none;cursor:grab;user-select:none}
+  .ring-wrap.dragging{cursor:grabbing}
+  .ring-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+
+  .hub{position:absolute;left:50%;top:172px;transform:translate(-50%,-50%);
+    width:150px;text-align:center;pointer-events:none}
+  .hub-when{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted)}
+  .hub-name{font-family:"Archivo Black",Arial,sans-serif;font-size:30px;letter-spacing:-.03em;
+    line-height:1;color:var(--ink);margin-top:8px}
+  .hub-rule{width:30px;height:2px;background:var(--ink);margin:11px auto 0}
+  .hub-date{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);margin-top:10px}
+
+  .disc{position:absolute;left:50%;top:172px;width:50px;height:50px;border-radius:50%;
+    background:var(--surface);border:1.5px solid var(--line2);padding:0;cursor:pointer;
+    transition:transform .45s cubic-bezier(.22,1,.36,1), box-shadow .3s, border-color .3s}
+  .ring-wrap.dragging .disc{transition:none}
+  .disc-fill{position:absolute;left:0;right:0;bottom:0;border-radius:0 0 50% 50%/0 0 25px 25px}
+  .disc-clip{position:absolute;inset:0;border-radius:50%;overflow:hidden;pointer-events:none}
+  .disc-icon{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:19px;height:19px;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .disc-label{position:absolute;left:50%;font-family:"IBM Plex Mono",monospace;font-size:8px;
+    font-weight:700;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;
+    color:var(--ink2);pointer-events:none}
+  .disc[aria-current="true"] + .disc-label,
+  .disc-label[data-focus="1"]{color:var(--ink)}
+  .disc:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+  .ring-panel{background:var(--surface);border:1px solid var(--line);border-top-width:3px}
+  .ring-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+    flex-wrap:wrap;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+  .ring-head h3{font-size:19px;line-height:1.15}
+  .ring-status{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;
+    text-transform:uppercase;white-space:nowrap}
+  .ring-status[data-s="behind"]{color:var(--miss)}
+  .ring-status[data-s="clear"]{color:var(--done)}
+  .ring-status[data-s="ok"]{color:var(--muted)}
+  .ring-note{padding:13px 16px;font-size:14px;color:var(--ink2);max-width:60ch}
+  .ring-go{padding:0 16px 16px}
+
+  @media (max-width:400px){
+    .ring-wrap{height:320px}
+    .hub{top:160px}
+    .disc{top:160px}
+  }
+
   /* verdict */
   .verdict{background:var(--iron);color:var(--on-iron);padding:clamp(20px,3vw,28px);
     border-left:10px solid var(--warn);display:flex;flex-direction:column;gap:12px}
@@ -516,6 +584,7 @@
   </header>
 
   <nav class="secnav" id="secnav" aria-label="Sections">
+    <a href="#s-ring">Ring</a>
     <a href="#s-today">Today</a>
     <a href="#s-day">Day</a>
     <a href="#s-money">Money</a>
@@ -527,6 +596,24 @@
     <a href="#s-prog">Programme</a>
     <a href="#s-settings">Settings</a>
   </nav>
+
+  <section id="s-ring">
+    <div class="ring-wrap" id="ring" role="group" aria-label="Life areas">
+      <svg class="ring-svg" id="ring-svg" viewBox="0 0 390 344" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <circle cx="195" cy="172" r="122" fill="none" stroke="var(--surface2)" stroke-width="18"></circle>
+        <circle cx="195" cy="172" r="122" fill="none" stroke="var(--line2)" stroke-width="7"
+                stroke-dasharray="1 12.77" stroke-linecap="round"></circle>
+        <path id="ring-needle" d="M195 30 l6.5 11 h-13 z" fill="var(--ink)"></path>
+      </svg>
+      <div class="hub">
+        <div class="hub-when" id="hub-when">GOOD EVENING</div>
+        <div class="hub-name">Caiden</div>
+        <div class="hub-rule"></div>
+        <div class="hub-date" id="hub-date"></div>
+      </div>
+    </div>
+    <div class="ring-panel" id="ring-panel"></div>
+  </section>
 
   <section class="verdict" id="verdict" data-sev="warn">
     <div class="eyebrow" id="v-eyebrow">Reading the record</div>
@@ -2397,6 +2484,226 @@ function wireAddPerson(){
   });
 }
 
+
+/* ---------- the ring ----------
+   A dial of the six areas. It is a status view and the navigation - tapping a
+   disc spins it to the top and jumps to that area's real section, rather than
+   duplicating six panels that would then drift out of step. */
+const RING_R = 122;
+
+const AREAS = [
+  { id:"house", name:"House", label:"House", colour:"--area-house", target:"#s-house",
+    icon:"M3 9.5 10 3.5l7 6M5 8.5V16h10V8.5",
+    read:function(){
+      const all = choreList(), over = choresOverdue().length;
+      const pct = all.length ? Math.round((all.length - over) / all.length * 100) : 0;
+      const worst = choresSorted()[0];
+      return { pct:pct, state: over ? "behind" : (all.length ? "clear" : "ok"),
+        status: over ? over + " behind" : (all.length ? "all current" : "none set"),
+        note: !all.length ? "No jobs tracked yet."
+          : over ? (worst.last === null
+              ? worst.name + " has never been logged, and " + over + " of " + all.length + " jobs are behind."
+              : worst.name + " is " + plural(choreOver(worst),"day") + " past due. " + over + " of " + all.length + " behind.")
+            : "Every job is inside its window." };
+    }},
+  { id:"train", name:"Training", label:"Training", colour:"--area-train", target:"#s-today",
+    icon:"M4 7v6M16 7v6M7 5v10M13 5v10M7 10h6",
+    read:function(){
+      const t = weekTarget(), w = sessionsThisWeek(), left = daysLeftThisWeek();
+      const pct = Math.min(100, Math.round(w / Math.max(1,t) * 100));
+      const risk = w < t && left <= (t - w);
+      return { pct:pct, state: w >= t ? "clear" : (risk ? "behind" : "ok"),
+        status: w + "/" + t + (w >= t ? " done" : ""),
+        note: w >= t ? "Week cleared - " + w + " of " + t + ". Next up is " + nextDueText(true) + "."
+          : risk ? w + " of " + t + " with " + plural(left,"day") + " left. Every one counts now."
+          : w + " of " + t + " this week. Next up is " + nextDueText(true) + "." };
+    }},
+  { id:"eat", name:"Eating", label:"Eating", colour:"--area-eat", target:"#s-day",
+    icon:"M6 3v7a2 2 0 0 0 4 0V3M8 10v7M14 3c-1.5 1-2 3-2 5s.5 3 2 3v6",
+    read:function(){
+      const t = areaCfg().eat.target, w = eatWeek();
+      return { pct: Math.min(100, Math.round(w / Math.max(1,t) * 100)),
+        state: w >= t ? "clear" : "ok", status: w + "/" + t,
+        note: w >= t ? "Eating target met - " + w + " of " + t + " days."
+          : w + " of " + t + " days this week. Both marks have to be ticked for a day to count." };
+    }},
+  { id:"money", name:"Money", label:"Money", colour:"--area-money", target:"#s-money",
+    icon:"M12 4H8.5A2.5 2.5 0 0 0 6 6.5c0 3 2 3.5 2 6.5 0 1-.5 2-1.5 2.5H14M6 10h5",
+    read:function(){
+      const cap = areaCfg().money.cap, spent = spendThisWeek();
+      const pct = cap > 0 ? Math.min(100, Math.round(spent / cap * 100)) : 0;
+      const over = spent > cap;
+      return { pct:pct, state: over ? "behind" : (pct >= 80 ? "ok" : "clear"),
+        status: over ? money(spent - cap) + " over" : money(cap - spent) + " left",
+        note: over ? "You're " + money(spent - cap) + " over the " + money(cap) + " cap with the week not finished."
+          : money(spent) + " of " + money(cap) + " spent." };
+    }},
+  { id:"sleep", name:"Sleep", label:"Sleep", colour:"--area-sleep", target:"#s-day",
+    icon:"M15.5 11.5A6 6 0 0 1 8 4a6.5 6.5 0 1 0 7.5 7.5z",
+    read:function(){
+      const t = areaCfg().sleep.target, w = sleepWeek(), by = areaCfg().sleep.by;
+      return { pct: Math.min(100, Math.round(w / Math.max(1,t) * 100)),
+        state: w >= t ? "clear" : "ok", status: w + "/" + t,
+        note: w >= t ? "In bed by " + fmtH(by) + " on " + w + " of " + t + " days. Done."
+          : w + " of " + t + " nights in bed by " + fmtH(by) + "." };
+    }},
+  { id:"people", name:"People", label:"People", colour:"--area-people", target:"#s-people",
+    icon:"M7.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 16c0-2.5 2-4 4.5-4S12 13.5 12 16M13 5.2a2.5 2.5 0 0 1 0 4.6M14.5 12.4c1.6.6 2.5 1.9 2.5 3.6",
+    read:function(){
+      const all = peopleList(), over = peopleOverdue().length;
+      const pct = all.length ? Math.round((all.length - over) / all.length * 100) : 0;
+      const worst = peopleSorted()[0];
+      return { pct:pct, state: over ? "behind" : (all.length ? "clear" : "ok"),
+        status: all.length ? (over ? over + " overdue" : "all current") : "none added",
+        note: !all.length ? "Nobody added yet."
+          : over ? worst.name + " - " + personAge(worst) + ". " + over + " of " + all.length + " overdue."
+            : "Everyone inside their window." };
+    }}
+];
+
+let ringRot = 0, ringFocus = 0, ringDragging = false;
+
+function ringSlots(){
+  return AREAS.map(function(a, i){
+    const t = (-90 + i * 60 + ringRot) * Math.PI / 180;
+    return { x: Math.cos(t) * RING_R, y: Math.sin(t) * RING_R };
+  });
+}
+
+function greeting(){
+  if(NOW_H < 12) return "Good morning";
+  if(NOW_H < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+function renderRing(){
+  const wrap = document.getElementById("ring");
+  if(!wrap) return;
+  const slots = ringSlots();
+
+  document.getElementById("hub-when").textContent = greeting().toUpperCase();
+  document.getElementById("hub-date").textContent =
+    TODAY.toLocaleDateString(undefined, {weekday:"short", day:"numeric", month:"short"}).toUpperCase();
+
+  wrap.querySelectorAll(".disc, .disc-label").forEach(function(n){ n.remove(); });
+
+  AREAS.forEach(function(a, i){
+    const r = a.read();
+    const s = slots[i];
+    const focused = i === ringFocus;
+    const col = "var(" + a.colour + ")";
+
+    const shadows = [];
+    if(r.state === "behind") shadows.push("0 0 0 3px var(--miss-soft)");
+    else if(r.state === "clear") shadows.push("0 0 0 3px var(--done-soft)");
+    if(focused) shadows.push("0 0 0 " + (shadows.length ? "6px" : "3px") + " rgba(0,0,0,.10)");
+
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "disc";
+    b.setAttribute("data-i", i);
+    b.setAttribute("aria-label", a.name + " - " + r.status + (r.state === "behind" ? ", behind" : ""));
+    b.style.borderColor = col;
+    b.style.borderWidth = focused ? "2px" : "1.5px";
+    b.style.boxShadow = shadows.join(", ");
+    b.style.transform = "translate(calc(-50% + " + s.x.toFixed(1) + "px), calc(-50% + "
+      + s.y.toFixed(1) + "px)) scale(" + (focused ? 1.14 : 1) + ")";
+
+    const clip = document.createElement("span");
+    clip.className = "disc-clip";
+    const fill = document.createElement("span");
+    fill.className = "disc-fill";
+    fill.style.height = Math.max(0, Math.min(100, r.pct)) + "%";
+    fill.style.background = col;
+    fill.style.opacity = ".85";
+    clip.appendChild(fill);
+    b.appendChild(clip);
+
+    b.insertAdjacentHTML("beforeend",
+      '<svg class="disc-icon" viewBox="0 0 20 20" stroke="' + (r.pct > 55 ? "var(--surface)" : col) + '">'
+      + '<path d="' + a.icon + '"></path></svg>');
+
+    const lab = document.createElement("span");
+    lab.className = "disc-label";
+    lab.textContent = a.label;
+    lab.setAttribute("data-focus", focused ? "1" : "0");
+    lab.style.top = "172px";
+    lab.style.transform = "translate(calc(-50% + " + s.x.toFixed(1) + "px), calc(-50% + "
+      + (s.y + (s.y < -2 ? -40 : 32)).toFixed(1) + "px))";
+
+    b.addEventListener("click", function(){
+      if(ringDragging) return;
+      ringFocus = i;
+      ringRot = -60 * i;
+      renderRing();
+      const t = document.querySelector(a.target);
+      if(t) t.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"});
+    });
+
+    wrap.appendChild(b);
+    wrap.appendChild(lab);
+  });
+
+  const focus = AREAS[ringFocus], fr = focus.read();
+  document.getElementById("ring-needle").setAttribute("fill", "var(" + focus.colour + ")");
+
+  const panel = document.getElementById("ring-panel");
+  panel.style.borderTopColor = "var(" + focus.colour + ")";
+  panel.innerHTML =
+    '<div class="ring-head"><h3>' + focus.name + '</h3>'
+      + '<span class="ring-status" data-s="' + fr.state + '">'
+      + (fr.state === "behind" ? fr.status : fr.state === "clear" ? "on track - " + fr.status : fr.status)
+      + '</span></div>'
+    + '<p class="ring-note">' + esc(fr.note) + '</p>'
+    + '<div class="ring-go"><button class="btn" type="button" id="ring-goto">Open ' + focus.name + '</button></div>';
+
+  document.getElementById("ring-goto").addEventListener("click", function(){
+    const t = document.querySelector(focus.target);
+    if(t) t.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block:"start"});
+  });
+}
+
+function wireRing(){
+  const wrap = document.getElementById("ring");
+  if(!wrap) return;
+  let startAng = 0, baseRot = 0, moved = false, active = false;
+
+  function angle(e){
+    const r = wrap.getBoundingClientRect();
+    return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI;
+  }
+  function move(e){
+    if(!active) return;
+    let d = angle(e) - startAng;
+    while(d > 180) d -= 360;
+    while(d < -180) d += 360;
+    if(Math.abs(d) > 3){ moved = true; ringDragging = true; wrap.classList.add("dragging"); }
+    ringRot = baseRot + d;
+    renderRing();
+  }
+  function up(){
+    if(!active) return;
+    active = false;
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    wrap.classList.remove("dragging");
+    if(moved){
+      const steps = Math.round(ringRot / 60);
+      ringRot = steps * 60;
+      ringFocus = ((-steps % 6) + 6) % 6;
+      renderRing();
+    }
+    /* Let the click that follows a real drag be swallowed, but allow a tap. */
+    setTimeout(function(){ ringDragging = false; }, moved ? 60 : 0);
+  }
+  wrap.addEventListener("pointerdown", function(e){
+    active = true; moved = false;
+    startAng = angle(e); baseRot = ringRot;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+}
+
 function renderGuide(){
   const host = document.getElementById("guide-list");
   host.innerHTML = Object.keys(CUES).map(function(id){
@@ -2435,6 +2742,7 @@ function renderProgramme(){
 
 function renderAll(){
   renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
+  renderRing();
   renderSession(); renderDay(); renderMoney(); renderHouse(); renderPeople();
   renderCal(); renderLedger(); renderProgramme();
   renderAppearance();
@@ -2465,6 +2773,7 @@ applyAppearance();
 renderGuide();
 wireAddJob();
 wireAddPerson();
+wireRing();
 renderAll();
 
 /* ---------- push notifications ----------
