@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-08T15:21:41.644Z";</script>
+<script>window.__BUILD__ = "2026-09-08T15:24:27.196Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -646,10 +646,6 @@
   </section>
 
   <section id="s-house">
-    <div class="sec-head">
-      <h2>The house</h2>
-      <p class="sec-note">Not a streak — a clock. Each job shows how long it's actually been, and turns red once it's past due. Edit the timings to whatever you'll really hold to.</p>
-    </div>
     <div class="panel">
       <div class="house-verdict" id="house-verdict"></div>
       <ul class="jobs" id="jobs"></ul>
@@ -729,34 +725,18 @@
   </section>
 
   <section id="s-eat">
-    <div class="sec-head">
-      <h2>Eating</h2>
-      <p class="sec-note">Two taps. Both have to be ticked for the day to count.</p>
-    </div>
     <div class="panel" id="eat-panel"></div>
   </section>
 
   <section id="s-money">
-    <div class="sec-head">
-      <h2>Money</h2>
-      <p class="sec-note">A weekly ceiling, not a budget. Add what you spend as you go — no categories, no receipts.</p>
-    </div>
     <div class="panel" id="money-panel"></div>
   </section>
 
   <section id="s-sleep">
-    <div class="sec-head">
-      <h2>Sleep</h2>
-      <p class="sec-note">One tap. The thing that decides whether the training does anything.</p>
-    </div>
     <div class="panel" id="sleep-panel"></div>
   </section>
 
   <section id="s-people">
-    <div class="sec-head">
-      <h2>People</h2>
-      <p class="sec-note">The same clock as the jobs, pointed at the people you'd say you care about. It doesn't care that you meant to ring them.</p>
-    </div>
     <div class="panel">
       <div class="house-verdict" id="people-verdict"></div>
       <ul class="jobs" id="people-list"></ul>
@@ -2339,7 +2319,7 @@ function renderEat(){
   if(!host) return;
   const t = areaCfg().eat.target, w = eatWeek(), m = marks(TODAY_K);
   host.innerHTML =
-    '<div class="sess-top"><div><h3 class="sess-title">Eating</h3>'
+    '<div class="sess-top"><div><h3 class="sess-title">Today</h3>'
       + '<p class="sess-sub">' + w + ' of ' + t + ' days this week</p></div>'
       + '<span class="chip" data-v="' + (w >= t ? "done" : "due") + '">' + (w >= t ? "Week clear" : "Today") + '</span></div>'
     + '<ul class="lifts">'
@@ -2355,7 +2335,7 @@ function renderSleep(){
   if(!host) return;
   const cfg = areaCfg(), t = cfg.sleep.target, by = cfg.sleep.by, w = sleepWeek(), m = marks(TODAY_K);
   host.innerHTML =
-    '<div class="sess-top"><div><h3 class="sess-title">Sleep</h3>'
+    '<div class="sess-top"><div><h3 class="sess-title">Tonight</h3>'
       + '<p class="sess-sub">' + w + ' of ' + t + ' nights this week</p></div>'
       + '<span class="chip" data-v="' + (w >= t ? "done" : "due") + '">' + (w >= t ? "Week clear" : "Tonight") + '</span></div>'
     + '<ul class="lifts">'
