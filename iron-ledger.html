@@ -401,6 +401,12 @@
   .btn-danger{color:var(--miss);border-color:var(--miss)}
   .btn-danger:hover{background:var(--miss-soft);border-color:var(--miss)}
 
+
+  /* inline progress bar, for anything measured against a ceiling */
+  .bar-track{display:inline-block;width:110px;height:6px;background:var(--surface2);
+    vertical-align:middle;overflow:hidden}
+  .bar-fill{display:block;height:100%;background:var(--done)}
+
   /* punch card */
   .box{background:var(--surface);border:1px solid var(--line);padding:18px 20px}
   .cal-scroll{overflow-x:auto;padding-bottom:6px}
@@ -511,7 +517,10 @@
 
   <nav class="secnav" id="secnav" aria-label="Sections">
     <a href="#s-today">Today</a>
+    <a href="#s-day">Day</a>
+    <a href="#s-money">Money</a>
     <a href="#s-house">House</a>
+    <a href="#s-people">People</a>
     <a href="#s-card">Card</a>
     <a href="#s-excuses">Excuses</a>
     <a href="#s-guide">How-to</a>
@@ -535,6 +544,22 @@
   <section class="figs" id="figs"></section>
   <div class="target-bar" id="target-bar"></div>
 
+  <section id="s-day">
+    <div class="sec-head">
+      <h2>The day</h2>
+      <p class="sec-note">Three taps. Eating and sleep are the two things that decide whether the training does anything.</p>
+    </div>
+    <div class="panel" id="day-panel"></div>
+  </section>
+
+  <section id="s-money">
+    <div class="sec-head">
+      <h2>Money</h2>
+      <p class="sec-note">A weekly ceiling, not a budget. Add what you spend as you go — no categories, no receipts.</p>
+    </div>
+    <div class="panel" id="money-panel"></div>
+  </section>
+
   <section id="s-house">
     <div class="sec-head">
       <h2>The house</h2>
@@ -548,6 +573,22 @@
         <span class="act-note" id="jobs-note"></span>
       </div>
       <div class="job-edit" id="add-form" hidden></div>
+    </div>
+  </section>
+
+  <section id="s-people">
+    <div class="sec-head">
+      <h2>People</h2>
+      <p class="sec-note">The same clock as the jobs, pointed at the people you'd say you care about. It doesn't care that you meant to ring them.</p>
+    </div>
+    <div class="panel">
+      <div class="house-verdict" id="people-verdict"></div>
+      <ul class="jobs" id="people-list"></ul>
+      <div class="actions">
+        <button class="btn" type="button" id="add-person">Add someone</button>
+        <span class="act-note" id="people-note"></span>
+      </div>
+      <div class="job-edit" id="person-form" hidden></div>
     </div>
   </section>
 
@@ -878,7 +919,16 @@ let TODAY = new Date(), TODAY_K = key(TODAY);
 let NOW_H = TODAY.getHours() + TODAY.getMinutes()/60;
 
 /* ---------- state ---------- */
-const BLANK = {start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null, target:3, updatedAt:0, scheme:"graphite", mode:"system"};
+const BLANK = {
+  start:TODAY_K, done:{}, skips:[], ticks:{}, longest:0, chores:null, target:3,
+  updatedAt:0, scheme:"graphite", mode:"system",
+  /* One entry per day, never a growing list — the record has to stay small
+     enough to send whole on every save. */
+  daily:{},          // "YYYY-MM-DD": {protein:bool, nojunk:bool, bed:bool}
+  spend:{},          // "YYYY-MM-DD": number (pounds)
+  people:null,       // [{id,name,every,last}] — same clock as the house jobs
+  areas:{ eat:{target:5}, sleep:{target:5, by:23}, money:{cap:100} }
+};
 const LS_KEY = "iron-ledger-v2";
 let state = JSON.parse(JSON.stringify(BLANK));
 let db = null, docRef = null, expressMode = false, expressTouched = false;
@@ -1164,6 +1214,74 @@ function excuseTally(){
     .sort(function(a,b){ return b.n-a.n; });
 }
 function topExcuse(){ const t = excuseTally(); return t.length ? t[0] : null; }
+
+/* ---------- the day: eating and sleep ----------
+   Three taps, no numbers. Anything that needs typing doesn't survive a
+   fortnight, and these have to be cheap enough to do while brushing teeth. */
+function areaCfg(){
+  if(!state.areas || typeof state.areas !== "object") state.areas = {};
+  const a = state.areas;
+  if(!a.eat)   a.eat   = {target:5};
+  if(!a.sleep) a.sleep = {target:5, by:23};
+  if(!a.money) a.money = {cap:100};
+  return a;
+}
+function marks(k){ if(!state.daily) state.daily = {}; return state.daily[k] || {}; }
+function setMark(k, field, on){
+  if(!state.daily) state.daily = {};
+  const m = Object.assign({}, state.daily[k] || {});
+  if(on) m[field] = true; else delete m[field];
+  if(Object.keys(m).length) state.daily[k] = m; else delete state.daily[k];
+}
+function eatOK(m){ return Boolean(m.protein && m.nojunk); }
+function sleepOK(m){ return Boolean(m.bed); }
+
+/* Days this week where a predicate held. */
+function daysHitThisWeek(pred){
+  const mon = mondayOf(TODAY);
+  let n = 0;
+  for(let i=0;i<7;i++){
+    const k = key(addDays(mon,i));
+    if(k <= TODAY_K && pred(marks(k))) n++;
+  }
+  return n;
+}
+function eatWeek(){  return daysHitThisWeek(eatOK); }
+function sleepWeek(){ return daysHitThisWeek(sleepOK); }
+
+/* ---------- money ---------- */
+function spendOn(k){ if(!state.spend) state.spend = {}; return Number(state.spend[k]) || 0; }
+function addSpend(k, amount){
+  if(!state.spend) state.spend = {};
+  const v = Math.round((spendOn(k) + amount) * 100) / 100;
+  if(v > 0) state.spend[k] = v; else delete state.spend[k];
+}
+function spendThisWeek(){
+  const mon = mondayOf(TODAY);
+  let t = 0;
+  for(let i=0;i<7;i++) t += spendOn(key(addDays(mon,i)));
+  return Math.round(t * 100) / 100;
+}
+function money(n){ return "£" + (Math.round(n*100)/100).toFixed(2).replace(/\.00$/, ""); }
+
+/* ---------- people ----------
+   The same clock as the house jobs, and the bluntest thing in the app: it
+   doesn't care that you meant to ring them. */
+function peopleList(){
+  if(!Array.isArray(state.people)) state.people = [];
+  return state.people;
+}
+function personOver(p){ const a = p.last ? daysBetween(p.last, TODAY_K) : null; return a === null ? 9999 : a - p.every; }
+function peopleOverdue(){ return peopleList().filter(function(p){ return personOver(p) > 0; }); }
+function peopleSorted(){ return peopleList().slice().sort(function(a,b){ return personOver(b) - personOver(a); }); }
+function personAge(p){
+  const a = p.last ? daysBetween(p.last, TODAY_K) : null;
+  if(a === null) return "never logged";
+  if(a === 0) return "today";
+  if(a === 1) return "yesterday";
+  if(a < 14) return a + " days ago";
+  return Math.floor(a/7) + " weeks ago";
+}
 
 /* ---------- house helpers ---------- */
 function choreList(){
@@ -2054,6 +2172,231 @@ function wireAddJob(){
   });
 }
 
+
+/* ---------- the day ---------- */
+function renderDay(){
+  const host = document.getElementById("day-panel");
+  if(!host) return;
+  const cfg = areaCfg(), m = marks(TODAY_K);
+  const eatT = cfg.eat.target, slpT = cfg.sleep.target, by = cfg.sleep.by;
+  const eatW = eatWeek(), slpW = sleepWeek();
+  const clear = eatW >= eatT && slpW >= slpT;
+
+  function row(field, label, meta, on){
+    return '<li><div class="lift" role="checkbox" tabindex="0" aria-checked="' + on + '" data-mark="' + field + '">'
+      + '<span class="tick"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8.5 6 12.5 14 3.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+      + '<span class="lift-n">' + label + '</span>'
+      + '<span class="lift-d">' + meta + '</span></div></li>';
+  }
+
+  host.innerHTML =
+    '<div class="sess-top"><div><h3 class="sess-title">Today</h3>'
+      + '<p class="sess-sub">Eating ' + eatW + '/' + eatT + ' &middot; Sleep ' + slpW + '/' + slpT + '</p></div>'
+      + '<span class="chip" data-v="' + (clear ? "done" : "due") + '">' + (clear ? "Week clear" : "This week") + '</span></div>'
+    + '<ul class="lifts">'
+      + row("protein", "Protein at every meal", "eating", Boolean(m.protein))
+      + row("nojunk", "Nothing you would rather not admit to", "eating", Boolean(m.nojunk))
+      + row("bed", "In bed by " + fmtH(by), "sleep", Boolean(m.bed))
+    + '</ul>'
+    + '<div class="strip"><b>Eating</b><span>' + eatW + ' of ' + eatT + ' days this week &mdash; both marks have to be ticked for a day to count.</span></div>'
+    + '<div class="strip"><b>Sleep</b><span>' + slpW + ' of ' + slpT + ' days this week.</span></div>';
+
+  host.querySelectorAll("[data-mark]").forEach(function(b){
+    const field = b.dataset.mark;
+    function toggle(){
+      setMark(TODAY_K, field, b.getAttribute("aria-checked") !== "true");
+      save(); renderDay();
+    }
+    b.addEventListener("click", toggle);
+    b.addEventListener("keydown", function(e){
+      if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggle(); }
+    });
+  });
+}
+
+/* ---------- money ----------
+   This is the one area that needs a number typed, so the whole job here is
+   making that as cheap as possible: three fixed buttons and one field. */
+function renderMoney(){
+  const host = document.getElementById("money-panel");
+  if(!host) return;
+  const cap = areaCfg().money.cap, spent = spendThisWeek();
+  const pct = cap > 0 ? Math.min(100, Math.round(spent / cap * 100)) : 0;
+  const over = spent > cap;
+  const left = Math.round((cap - spent) * 100) / 100;
+  const daysLeft = 7 - ((TODAY.getDay() + 6) % 7);
+  const perDay = Math.round(left / Math.max(1, daysLeft) * 100) / 100;
+
+  host.innerHTML =
+    '<div class="sess-top"><div><h3 class="sess-title">' + money(spent) + '</h3>'
+      + '<p class="sess-sub">of ' + money(cap) + ' this week</p></div>'
+      + '<span class="chip" data-v="' + (over ? "" : "done") + '">'
+      + (over ? money(spent - cap) + " over" : money(left) + " left") + '</span></div>'
+    + '<div class="strip"><b>Week</b><span>'
+      + '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%;background:'
+      + (over ? "var(--miss)" : "var(--done)") + '"></span></span> '
+      + pct + '% &middot; ' + plural(daysLeft, "day") + ' left'
+      + (over ? "" : " &middot; " + money(perDay) + "/day to stay under")
+      + '</span></div>'
+    + '<div class="note-bar">'
+      + '<div class="field"><label for="spend-amt">Spent today</label>'
+        + '<input id="spend-amt" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>'
+      + '<button class="btn btn-primary" type="button" id="spend-add">Add</button>'
+      + '<button class="btn" type="button" data-quick="5">+5</button>'
+      + '<button class="btn" type="button" data-quick="10">+10</button>'
+      + '<button class="btn" type="button" data-quick="20">+20</button>'
+    + '</div>'
+    + '<div class="strip"><b>Today</b><span>' + money(spendOn(TODAY_K))
+      + (spendOn(TODAY_K) ? ' &mdash; <button class="link-btn" type="button" id="spend-clear">clear</button>' : "")
+      + '</span></div>'
+    + '<div class="actions"><span class="act-note">Weekly cap ' + money(cap)
+      + ' <button class="link-btn" type="button" id="cap-edit">change</button></span></div>';
+
+  function bump(v){
+    if(!v || !(v > 0)) return;
+    addSpend(TODAY_K, v); save(); renderMoney();
+  }
+  const amt = document.getElementById("spend-amt");
+  document.getElementById("spend-add").addEventListener("click", function(){
+    bump(parseFloat(amt.value)); amt.value = "";
+  });
+  amt.addEventListener("keydown", function(e){
+    if(e.key === "Enter"){ e.preventDefault(); bump(parseFloat(amt.value)); amt.value = ""; }
+  });
+  host.querySelectorAll("[data-quick]").forEach(function(b){
+    b.addEventListener("click", function(){ bump(Number(b.dataset.quick)); });
+  });
+  const clr = document.getElementById("spend-clear");
+  if(clr) clr.addEventListener("click", function(){
+    delete state.spend[TODAY_K]; save(); renderMoney();
+  });
+  document.getElementById("cap-edit").addEventListener("click", function(){
+    const v = prompt("Weekly spending cap, in pounds:", String(areaCfg().money.cap));
+    if(v === null) return;
+    const n = parseFloat(v);
+    if(n > 0){ areaCfg().money.cap = Math.round(n * 100) / 100; save(); renderMoney(); }
+  });
+}
+
+/* ---------- people ---------- */
+function personFormHTML(p){
+  return '<div class="field grow"><label for="pn-' + p.id + '">Name</label>'
+      + '<input id="pn-' + p.id + '" type="text" maxlength="40" value="' + esc(p.name) + '"></div>'
+    + '<div class="field"><label for="pe-' + p.id + '">Every (days)</label>'
+      + '<input id="pe-' + p.id + '" type="number" min="1" max="365" value="' + p.every + '"></div>'
+    + '<button class="btn btn-primary" type="button" data-psave="' + esc(p.id) + '">Save</button>'
+    + '<button class="btn btn-danger" type="button" data-pdel="' + esc(p.id) + '">Remove</button>';
+}
+
+function renderPeople(){
+  const list = peopleSorted(), over = peopleOverdue();
+  const host = document.getElementById("people-list");
+  if(!host) return;
+
+  host.innerHTML = list.map(function(p){
+    const o = personOver(p), doneToday = p.last === TODAY_K;
+    let pill, ps;
+    if(p.last === null){ pill = "Never logged"; ps = "over"; }
+    else if(o > 0){ pill = plural(o, "day") + " over"; ps = "over"; }
+    else if(o === 0){ pill = "Due today"; ps = "due"; }
+    else { pill = "Due in " + plural(-o, "day"); ps = "ok"; }
+    return '<li data-s="' + (o > 0 ? "over" : (o === 0 ? "due" : "ok")) + '">'
+      + '<div class="job">'
+        + '<span class="job-n">' + esc(p.name) + '</span>'
+        + '<span class="job-when">' + personAge(p) + ' &middot; every ' + p.every + 'd</span>'
+        + '<span class="pill" data-s="' + ps + '">' + pill + '</span>'
+        + '<button class="job-do" type="button" data-pdo="' + esc(p.id) + '">' + (doneToday ? "Undo" : "Spoke to them") + '</button>'
+        + '<button class="job-ed" type="button" data-ped="' + esc(p.id) + '" aria-expanded="false">Edit</button>'
+      + '</div><div class="job-edit" id="ped-' + esc(p.id) + '" hidden></div></li>';
+  }).join("");
+
+  const v = document.getElementById("people-verdict");
+  if(!list.length){
+    v.removeAttribute("data-s");
+    v.textContent = "Nobody added yet. Put in the handful you would actually be sorry to drift away from.";
+  } else if(!over.length){
+    v.setAttribute("data-s", "ok");
+    v.innerHTML = "<b>Everyone is current.</b> All " + plural(list.length, "person") + " inside their window.";
+  } else {
+    const w = list[0];
+    v.setAttribute("data-s", "over");
+    v.innerHTML = (w.last === null
+        ? "<b>" + esc(w.name) + " has never been logged.</b> "
+        : "<b>" + esc(w.name) + " &mdash; " + personAge(w) + ".</b> ")
+      + over.length + " of " + list.length + " overdue.";
+  }
+  const note = document.getElementById("people-note");
+  if(note) note.textContent = list.length ? (over.length ? over.length + " overdue" : "all current") : "";
+
+  host.querySelectorAll("[data-pdo]").forEach(function(b){
+    b.addEventListener("click", function(){
+      const p = peopleList().filter(function(x){ return x.id === b.dataset.pdo; })[0];
+      if(!p) return;
+      if(p.last === TODAY_K){ p.last = p.prev || null; delete p.prev; }
+      else { p.prev = p.last; p.last = TODAY_K; }
+      save(); renderPeople();
+    });
+  });
+  host.querySelectorAll("[data-ped]").forEach(function(b){
+    b.addEventListener("click", function(){
+      const p = peopleList().filter(function(x){ return x.id === b.dataset.ped; })[0];
+      if(!p) return;
+      const panel = document.getElementById("ped-" + p.id);
+      const open = panel.hidden;
+      if(open) panel.innerHTML = personFormHTML(p);
+      panel.hidden = !open;
+      b.setAttribute("aria-expanded", String(open));
+      b.textContent = open ? "Close" : "Edit";
+      if(!open) return;
+      panel.querySelector("[data-psave]").addEventListener("click", function(){
+        const n = document.getElementById("pn-" + p.id).value.trim();
+        const e = parseInt(document.getElementById("pe-" + p.id).value, 10);
+        if(!n){ document.getElementById("pn-" + p.id).focus(); return; }
+        p.name = n;
+        if(e >= 1 && e <= 365) p.every = e;
+        save(); renderPeople();
+      });
+      panel.querySelector("[data-pdel]").addEventListener("click", function(){
+        if(!confirm("Remove " + p.name + "?")) return;
+        state.people = peopleList().filter(function(x){ return x.id !== p.id; });
+        save(); renderPeople();
+      });
+    });
+  });
+}
+
+function wireAddPerson(){
+  const btn = document.getElementById("add-person"), form = document.getElementById("person-form");
+  if(!btn || !form) return;
+  btn.addEventListener("click", function(){
+    const open = form.hidden;
+    if(open){
+      form.innerHTML = '<div class="field grow"><label for="new-pn">Name</label>'
+          + '<input id="new-pn" type="text" maxlength="40" placeholder="Mum"></div>'
+        + '<div class="field"><label for="new-pe">Every (days)</label>'
+          + '<input id="new-pe" type="number" min="1" max="365" value="14"></div>'
+        + '<button class="btn btn-primary" type="button" id="new-psave">Add</button>'
+        + '<button class="btn btn-ghost" type="button" id="new-pcancel">Cancel</button>';
+    }
+    form.hidden = !open;
+    btn.textContent = open ? "Close" : "Add someone";
+    if(!open) return;
+    document.getElementById("new-pn").focus();
+    document.getElementById("new-psave").addEventListener("click", function(){
+      const n = document.getElementById("new-pn").value.trim();
+      const e = parseInt(document.getElementById("new-pe").value, 10);
+      if(!n){ document.getElementById("new-pn").focus(); return; }
+      peopleList().push({ id: "p-" + Date.now().toString(36), name: n,
+        every: (e >= 1 && e <= 365) ? e : 14, last: null });
+      form.hidden = true; btn.textContent = "Add someone";
+      save(); renderPeople();
+    });
+    document.getElementById("new-pcancel").addEventListener("click", function(){
+      form.hidden = true; btn.textContent = "Add someone";
+    });
+  });
+}
+
 function renderGuide(){
   const host = document.getElementById("guide-list");
   host.innerHTML = Object.keys(CUES).map(function(id){
@@ -2092,7 +2435,8 @@ function renderProgramme(){
 
 function renderAll(){
   renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
-  renderSession(); renderHouse(); renderCal(); renderLedger(); renderProgramme();
+  renderSession(); renderDay(); renderMoney(); renderHouse(); renderPeople();
+  renderCal(); renderLedger(); renderProgramme();
   renderAppearance();
   renderKeyBlock();
   /* renderAll runs once during boot, before this module is assigned, so this
@@ -2120,6 +2464,7 @@ window.addEventListener("error", function(e){
 applyAppearance();
 renderGuide();
 wireAddJob();
+wireAddPerson();
 renderAll();
 
 /* ---------- push notifications ----------
