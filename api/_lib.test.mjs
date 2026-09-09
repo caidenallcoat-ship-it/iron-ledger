@@ -139,6 +139,44 @@ ok("a quiet evening does not lower what the week asks for", quietWeek !== null,
   JSON.stringify(quietWeek));
 
 console.log("");
+console.log("evenings already spoken for");
+const busyNight = buildNudge(
+  base(hist(20, 1, 3), { busy: { [TODAY]: "Mum's birthday" } }), TODAY);
+ok("tonight's plans are named, not argued with",
+  busyNight && busyNight.body.startsWith("Mum's birthday."), busyNight && busyNight.body);
+ok("and it does not nag about a session that can't happen",
+  busyNight && !/Session [A-E]/.test(busyNight.body), busyNight && busyNight.body);
+ok("a busy evening with no label still works",
+  buildNudge(base(hist(20, 1, 3), { busy: { [TODAY]: true } }), TODAY)
+    .body.startsWith("You have something on."));
+
+// The point of the whole thing: booked evenings shrink the room, never the target.
+const twoSessions = {
+  "2026-09-07": { key: "A", at: "x", express: false },
+  "2026-09-08": { key: "B", at: "x", express: false },
+};
+const roomy = buildNudge(base(twoSessions, { target: 3 }), TODAY);
+// Thursday to Sunday all booked, so tonight is the only evening left for the
+// session still owed. Two free evenings for one session would not be at risk,
+// and the app should not pretend otherwise.
+const cramped = buildNudge(
+  base(twoSessions, {
+    target: 3,
+    busy: { "2026-09-10": true, "2026-09-11": true, "2026-09-12": true, "2026-09-13": true },
+  }),
+  TODAY);
+ok("with the week open it is an ordinary evening",
+  roomy && !/Every one counts now/.test(roomy.body), roomy && roomy.body);
+ok("with the rest of the week booked it goes to at-risk",
+  cramped && /Every one counts now/.test(cramped.body), cramped && cramped.body);
+ok("and it says how many evenings are actually left",
+  cramped && /free evening/.test(cramped.body), cramped && cramped.body);
+ok("the target itself never moves",
+  cramped && cramped.body.includes("of 3"), cramped && cramped.body);
+ok("an evening you already trained is not counted as free",
+  buildNudge(base(twoSessions, { target: 3 }), TODAY).body.includes("2 of 3"));
+
+console.log("");
 console.log("health: reading a bedtime");
 ok('"23:12" is 23.2', Math.abs(bedHour("23:12") - 23.2) < 0.01, String(bedHour("23:12")));
 ok('"01:30" is 1.5', bedHour("01:30") === 1.5, String(bedHour("01:30")));

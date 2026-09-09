@@ -236,9 +236,16 @@ export function buildNudge(state, todayKey) {
   /* A rest day comes off what the week asks of you; it is never counted as a
      session. weekDone stays the true number so the nudge and the app agree. */
   const bar = Math.max(1, target - weekRested);
-  // Every remaining day is a possible training day now.
+  /* Evenings you can actually use: not past, not already spoken for by
+     something in your calendar, not already trained. A booked evening never
+     lowers the target — it just means the warning has to come sooner. */
+  const busy = state.busy || {};
   let daysLeft = 0;
-  for (let i = 0; i < 7; i++) if (addDays(monday, i) >= todayKey) daysLeft++;
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(monday, i);
+    if (k >= todayKey && !busy[k] && !done[k]) daysLeft++;
+  }
+  const bookedAhead = Object.keys(busy).filter((k) => k > todayKey && k <= addDays(monday, 6)).sort();
 
   const doneKeys = Object.keys(done).sort();
   const last = doneKeys.length ? doneKeys[doneKeys.length - 1] : null;
@@ -360,6 +367,19 @@ export function buildNudge(state, todayKey) {
      about the bins. That is the whole product. */
   if (hasPass(passes, todayKey, "quiet")) return null;
 
+  /* Tonight is already spoken for. Nagging about a session that cannot happen
+     is how an app teaches you to ignore it. */
+  if (busy[todayKey]) {
+    const what = busy[todayKey] === true ? "You have something on" : String(busy[todayKey]);
+    const owed = Math.max(0, bar - weekDone);
+    return {
+      title: T,
+      body: `${what}. ${weekDone} of ${target} this week` +
+        (owed ? `, and ${plural(daysLeft, "free evening")} left for ${plural(owed, "session")}.` : ".") +
+        jobLine,
+    };
+  }
+
   if (hasPass(passes, todayKey, "rest")) {
     return jobLine
       ? { title: T, body: `Rest day, earned.${jobLine}` }
@@ -425,7 +445,9 @@ export function buildNudge(state, todayKey) {
   if (daysLeft <= bar - weekDone) {
     return {
       title: T,
-      body: `${weekDone} of ${target}, ${plural(daysLeft, "day")} left. Every one counts now. Session ${sk} — ${session.name}.`,
+      body: `${weekDone} of ${target}, ${plural(daysLeft, "free evening")} left.` +
+        (bookedAhead.length ? ` ${plural(bookedAhead.length, "evening")} already booked.` : "") +
+        ` Every one counts now. Session ${sk} — ${session.name}.`,
     };
   }
 

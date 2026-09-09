@@ -153,3 +153,69 @@ No weight, no steps, no heart rate. All of them are easy to accept and none of
 them are read by anything in the app, so they would be numbers collected for
 the sake of collecting numbers. Sleep is here because the app already scores
 it and already asks you to tick it by hand.
+
+## Your calendar
+
+Calendar has no web API either. Shortcuts reads it, so it is the same bridge
+as Health — and the useful thing to send is not your appointments, only which
+evenings are already gone.
+
+```
+POST https://iron-ledger-cade10.vercel.app/api/plan
+Header:  x-ledger-key: <your key>
+Body:    {"busy": [
+           {"date": "2026-09-11", "what": "Five-a-side"},
+           {"date": "2026-09-12"}
+         ]}
+```
+
+`what` is optional and only used to name the evening back to you. Dates
+outside the next fortnight are ignored, and each post **replaces** everything
+already stored inside that window — a calendar is the authority on its own
+dates, so an event you cancelled clears itself instead of haunting the app.
+
+To read the week back:
+
+```
+GET https://iron-ledger-cade10.vercel.app/api/plan
+```
+
+```json
+{ "week": "2026-09-07", "target": 3, "trained": 2, "free": 3,
+  "busy": [{"date": "2026-09-11", "what": "Five-a-side"}] }
+```
+
+### Shortcut 6 — push the week's evenings in, every morning
+
+1. **Find Calendar Events** — *Start Date* is in the next 7 days, and
+   *Start Date* is after 17:00 (add a second filter for before 22:00 if your
+   days are busy in the afternoon)
+2. **Repeat with Each**, building a dictionary of `date` and `what` from
+   *Repeat Item → Start Date* and *→ Title*
+3. **Get Contents of URL** — POST the list to `/api/plan`
+4. Automation → **Time of Day** → 07:00 daily → run without asking
+
+### What it changes, and what it deliberately doesn't
+
+A booked evening **never lowers the target**. Three sessions is still three
+sessions — life filling up is a reason to start earlier in the week, not a
+reason to owe less, and a calendar that excused sessions would just be a way
+of writing the week off in advance.
+
+What it changes is *when the app starts pushing* and *what it says on the
+night*. Three sessions across five free evenings is comfortable; across two
+it is already in trouble, and the app used to treat those identically. Now:
+
+- "Week at risk" counts free evenings rather than days on a calendar
+- On a booked evening it says **"Tonight is spoken for — Mum's birthday"**
+  rather than nagging about a session that cannot happen
+- The 18:00 notification does the same, and tells you how many free evenings
+  are left for what you still owe
+- The day shows on the grid as a dashed outline: not trained, not missed
+
+### Shortcut 7 — block the session out in your calendar
+
+The reverse direction, and worth doing: **Add New Event**, 30 minutes at your
+training time, on the days you intend to train. Deciding when in advance is
+the single best-evidenced trick for actually doing it, and an evening already
+blocked out is one nobody else can book.

@@ -671,6 +671,8 @@
   .cell[data-s="none"]{background:var(--surface2);opacity:.35}
   /* A spent pass reads as neither done nor missed, because it was neither. */
   .cell[data-s="pass"]{background:transparent;border:1.5px solid var(--warn)}
+  /* An evening you already had plans for: not trained, not missed. */
+  .cell[data-s="busy"]{background:var(--surface2);border:1px dashed var(--line2)}
   .cell[data-click="1"]{cursor:pointer}
   .cell[data-click="1"]:hover{outline:2px solid var(--ink);outline-offset:1px}
   .legend{display:flex;gap:15px;flex-wrap:wrap;margin-top:14px;font-family:"IBM Plex Mono",monospace;
@@ -1297,6 +1299,10 @@ const BLANK = {
      that day. Held passes are always derived from the session count minus
      what's been claimed, never stored, so the two can't drift apart. */
   passes:{},
+  /* "YYYY-MM-DD": "Mum's birthday" — an evening already spoken for, pushed
+     in from a calendar. It never excuses the week; it only changes when the
+     app starts warning, and what it says on the night itself. */
+  busy:{},
   claims:[],         // [{d, id, name, cost}] — everything ever claimed
   rewards:[],        // [{id, name, cost}] — rewards you wrote yourself
   onboarded:false, goal:null, slot:null
@@ -1829,6 +1835,39 @@ function weeksBelowTarget(){
 function daysLeftThisWeek(){
   return 7 - ((TODAY.getDay() + 6) % 7);
 }
+/* ---------- evenings already spoken for ----------
+   The week was planned as though all seven evenings were equally free. They
+   are not, and the difference matters: three sessions across five free
+   evenings is comfortable, across two it is already in trouble.
+
+   A booked evening never lowers the target. Life filling up is a reason to
+   start earlier, not a reason to owe less — treating it as an excuse would
+   make the calendar a way of quietly writing the week off. */
+function busyLog(){ return state.busy || (state.busy = {}); }
+function busyOn(k){ return busyLog()[k] || null; }
+function freeEveningsLeft(){
+  let n = 0;
+  const mon = mondayOf(TODAY);
+  for(let i=0;i<7;i++){
+    const k = key(addDays(mon,i));
+    if(k >= TODAY_K && !busyOn(k) && !state.done[k]) n++;
+  }
+  return n;
+}
+/* What's booked for the rest of this week, soonest first. */
+function busyAhead(){
+  const out = [], mon = mondayOf(TODAY);
+  for(let i=0;i<7;i++){
+    const k = key(addDays(mon,i));
+    if(k >= TODAY_K && busyOn(k)) out.push({ k:k, what:busyOn(k) });
+  }
+  return out;
+}
+function setBusy(k, what){
+  if(what) busyLog()[k] = String(what).slice(0, 60);
+  else delete busyLog()[k];
+  save(); renderAll();
+}
 function expressRate(){
   const ks = Object.keys(state.done).sort().slice(-10);
   if(ks.length < 4) return null;
@@ -2029,6 +2068,13 @@ function verdict(){
      `tgt` is still what gets shown — the count stays honest. */
   const bar = barThisWeek(), rested = restDaysInWeek(mondayOf(TODAY));
   const done = wk >= bar;
+  const free = freeEveningsLeft(), booked = busyAhead();
+  const bookedLine = booked.length
+    ? " " + booked.map(function(b){
+        return esc(parseKey(b.k).toLocaleDateString(undefined,{weekday:"long"}))
+          + (b.what === true ? "" : " (" + esc(b.what) + ")");
+      }).join(" and ") + " " + (booked.length > 1 ? "are" : "is") + " already spoken for."
+    : "";
 
   if(doneToday){
     const rec = state.done[TODAY_K], er = expressRate();
@@ -2042,6 +2088,18 @@ function verdict(){
         : "<b>"+earnedLine()+"</b> "
           + (hit ? "Target met — anything else this week is a bonus, not a debt. "+nextDueText()+"."
                  : "Eat something with protein in the next hour and get to bed at a sensible time. "+nextDueText()+".")};
+  }
+
+  const busyToday = busyOn(TODAY_K);
+  if(busyToday && !doneToday){
+    return {sev:"warn", eyebrow:"Tonight is spoken for",
+      line: busyToday === true ? "You've got something on." : String(busyToday),
+      sub:"Nothing to argue with, so the app won't. You're <b>"+wk+" of "+tgt+"</b> and that doesn't change "
+        +"\u2014 a booked evening isn't a rest day, it just isn't tonight. "
+        +(free > 0
+           ? "That leaves <b>"+plural(free,"free evening")+"</b> this week for <b>"+plural(Math.max(0,bar-wk),"session")+"</b>."
+           : "There are no free evenings left this week, so this one is gone unless you move something.")
+        +" Next up is <b>"+SESSIONS[sk].name+"</b>."};
   }
 
   const restToday = hasPass(TODAY_K, "rest");
@@ -2087,11 +2145,12 @@ function verdict(){
   }
 
   /* Behind on the week with the days running out. */
-  if(left <= (bar - wk)){
+  if(free <= (bar - wk)){
     return {sev:"bad", eyebrow:"Week at risk",
-      line: wk+" of "+tgt+" done, "+plural(left,"day")+" left.",
+      line: wk+" of "+tgt+" done, "+plural(free,"free evening")+" left.",
       sub:(rested ? "That's after "+plural(rested,"rest day")+" you'd earned, which is already off the total. " : "")
-        +"Every remaining day counts now — there's no slack left in the week. Next up is <b>"+s.name+", "+mins+" minutes</b>."};
+        +bookedLine
+        +" Every free evening counts now — there's no slack left in the week. Next up is <b>"+s.name+", "+mins+" minutes</b>."};
   }
 
   const weekLine = wk > 0 ? " You're <b>"+wk+" of "+tgt+"</b> this week." : " Nothing logged this week yet.";
@@ -2826,8 +2885,10 @@ function renderCal(){
          is just a day you didn't train; only the week bar below passes or
          fails. */
       const bought = passesOn(k);
+      const bsy = busyOn(k);
       if(rec) st = rec.express ? "express" : "done";
       else if(bought.length) st = "pass";
+      else if(bsy) st = "busy";
       else if(k > TODAY_K) st = "none";
       else if(k === TODAY_K) st = "due";
       else if(k < state.start) st = "none";
@@ -2837,6 +2898,7 @@ function renderCal(){
       const label = d.toLocaleDateString(undefined,{day:"numeric",month:"short"})
         +(rec ? " — Session "+rec.key+" "+(rec.express ? "· short version" : "· done")
               : bought.length ? " — " + (bl || "earned day") + ", earned"
+              : bsy ? " — " + (bsy === true ? "spoken for" : bsy)
               : " — no session");
       html += '<button class="cell" type="button" data-s="'+st+'" data-k="'+k+'"'
         +(clickable ? ' data-click="1"' : " disabled")
