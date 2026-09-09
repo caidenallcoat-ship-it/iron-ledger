@@ -240,6 +240,11 @@
   .lift[aria-checked="true"] .tick svg{opacity:1}
   .lift[aria-checked="true"] .lift-n{color:var(--muted);text-decoration:line-through}
   .lift-n{font-weight:500;flex:1;min-width:0}
+  /* Named, never silent: if the app has given you an easier form you should
+     know that is what you are doing. */
+  .eased{font-family:"IBM Plex Mono",monospace;font-size:8.5px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--warn);border:1px solid currentColor;
+    padding:1px 4px;vertical-align:middle;white-space:nowrap}
   .lift-d{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:13.5px;
     font-variant-numeric:tabular-nums;color:var(--ink2);white-space:nowrap;text-align:right}
   .how{flex:none;font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
@@ -944,6 +949,11 @@
         <p class="sec-note" id="notif-note" style="margin-top:8px"></p>
       </div>
       <div>
+        <div class="eyebrow" style="margin-bottom:8px">Where you're starting</div>
+        <div class="setup-opts" id="level-opts"></div>
+        <p class="sec-note" id="level-note" style="margin-top:8px"></p>
+      </div>
+      <div>
         <div class="eyebrow" style="margin-bottom:8px">What you are after</div>
         <div class="setup-opts" id="goal-opts"></div>
         <p class="sec-note" id="goal-note" style="margin-top:8px"></p>
@@ -1098,6 +1108,22 @@ const CUES = {
     setup:"One bell in each hand, or one bell in one hand — that's a suitcase carry, harder and better for your core.",
     doIt:"Stand tall, shoulders back and down, ribs pulled towards your hips, core braced like you're about to be poked in the stomach. <b>Walk normally.</b> Down the hall and back is fine.",
     fault:"Leaning away from the weight on a single-arm carry. <b>Stay perfectly upright</b> — resisting the lean is the entire exercise."},
+  pushIncline:{name:"Push-ups with your hands raised",kit:"Stairs or a worktop",
+    setup:"Hands on the third or fourth step, or the edge of a kitchen worktop. Walk your feet back until you are one straight line from ear to heel.",
+    doIt:"Exactly a push-up, just at an easier angle. Lower your chest to the step, elbows back at about 45°, and press away. <b>The higher your hands, the easier it is</b> — so if 8 is a struggle, go up a step, and if 8 is easy, go down one. That is the whole progression and it costs nothing.",
+    fault:"Hips sagging or bum in the air, same as on the floor. <b>Squeeze your glutes</b> and the line looks after itself. Going too low a step too early is the other one — there is no prize for suffering on week one."},
+  pushKnees:{name:"Push-ups on your knees",kit:"Floor",
+    setup:"Knees on something soft, ankles crossed behind you. Hands slightly wider than your shoulders. Shuffle your knees back until your body is a straight line from ear to knee.",
+    doIt:"Lower your chest to the floor with your elbows travelling back at 45°, then press. <b>Full range on your knees beats half a rep on your toes</b>, every time — the muscle cannot tell the difference and your shoulders will thank you.",
+    fault:"Sitting back towards your heels, which turns it into something much easier than it looks. Hips stay forward, in line with your shoulders and knees."},
+  stepBack:{name:"Step-back, stand up",kit:"Floor",
+    setup:"Stand tall. Hands go to the floor in front of you, and you walk your feet back one at a time rather than jumping them.",
+    doIt:"Hands down, step one foot back, then the other, into a plank. Step them back in one at a time and stand up. <b>No jump at either end</b> — the jump is what wrecks knees and it adds nothing you cannot get by moving steadily. Breathe at the top rather than racing.",
+    fault:"Rushing to make it feel like a burpee. It is not meant to. If you are gasping by the third rep, slow down — this is a conditioning drill, not a punishment."},
+  march:{name:"Marching on the spot",kit:"Floor",
+    setup:"Stand tall, arms bent, somewhere you can see a clock.",
+    doIt:"Drive one knee up to hip height, then the other, arms swinging naturally. Keep it brisk enough that talking gets awkward. <b>Both feet never leave the floor at once</b>, which is the entire point — you get the heart rate without the landing.",
+    fault:"Drifting into a stroll once it gets uncomfortable. The pace is the exercise. If your knees are not coming up, slow the arms down and lift them properly instead."},
   pushRed:{name:"Push-up board — red (chest)",kit:"Board",
     setup:"Hands in the red slots, roughly at the width where your forearms end up vertical at the bottom.",
     doIt:"One straight line from ear to heel — <b>squeeze your glutes</b>, that's the trick. Elbows travel back at about 45° from your body. Lower until your chest is just above the board, then press.",
@@ -1304,6 +1330,7 @@ const BLANK = {
      app starts warning, and what it says on the night itself. */
   busy:{},
   weight:{},        // "YYYY-MM-DD": kg, pushed in from Health
+  level:null,       // 0 building up | 1 getting there | 2 as written
   claims:[],         // [{d, id, name, cost}] — everything ever claimed
   rewards:[],        // [{id, name, cost}] — rewards you wrote yourself
   onboarded:false, goal:null, slot:null
@@ -1500,9 +1527,79 @@ function save(){
 /* ---------- derived ---------- */
 function weekNumber(){ return Math.max(1, Math.floor(daysBetween(state.start, TODAY_K)/7) + 1); }
 function setsFor(w, week){ return w.core ? w.sets + phaseFor(week).add : w.sets; }
+/* ---------- where you are starting ----------
+   The programme was written as one prescription for everybody: four sets of
+   max push-ups, forty rounds of burpees, five ninety-second rope intervals.
+   For someone carrying weight they has not lost yet, several of those are not
+   hard, they are impossible or unwise — burpees and skipping are both high
+   impact, and a set of push-ups you cannot do once is not a set, it is a
+   failure delivered on the first evening.
+
+   So every awkward movement has an easier form, and the level decides which
+   one you are shown. Nothing is hidden: the card names the variant you are
+   doing, and moving up is a decision you make, not something the app does
+   behind your back.
+
+   Level 2 is the programme exactly as written. */
+const LEVELS = ["Building up", "Getting there", "As written"];
+function startLevel(){
+  const l = state.level;
+  return (l === 0 || l === 1 || l === 2) ? l : 1;
+}
+/* Easier form first. An entry replaces the name, dose, cue and sets. */
+const REGRESS = {
+  "Push-up board — red (chest)": [
+    {n:"Push-ups — hands on the stairs", d:"8", sets:3, cue:"pushIncline"},
+    {n:"Push-ups — on your knees", d:"8", sets:3, cue:"pushKnees"}],
+  "Push-up board — blue (triceps)": [
+    {n:"Push-ups — hands on the stairs, close", d:"6", sets:2, cue:"pushIncline"},
+    {n:"Push-ups — knees, hands close", d:"6", sets:3, cue:"pushKnees"}],
+  "Push-up board — green (wide)": [
+    {n:"Push-ups — hands on the stairs, wide", d:"6", sets:2, cue:"pushIncline"},
+    {n:"Push-ups — knees, hands wide", d:"6", sets:3, cue:"pushKnees"}],
+  "Board circuit — red, blue, yellow, green": [
+    {n:"Stair push-ups — 4 hand positions", d:"5 each", sets:3, cue:"pushIncline"},
+    {n:"Knee push-ups — 4 hand positions", d:"6 each", sets:3, cue:"pushKnees"}],
+  "Burpees": [
+    {n:"Step-back, stand up", d:"8", sets:3, cue:"stepBack"},
+    {n:"Step-back burpee, no jump", d:"8", sets:3, cue:"stepBack"}],
+  "Rope intervals": [
+    {n:"March on the spot, 60s rope at the end", d:"90s", sets:4, cue:"march"},
+    {n:"Rope intervals — 45s on, 60s walking", d:"45s / 60s", sets:4, cue:"rope"}],
+  "EMOM 12 min — odd 10 swings, even 8 push-ups": [
+    {n:"EMOM 8 min — odd 8 swings, even 5 knee push-ups", d:"1 min each", sets:8, cue:"swing"},
+    {n:"EMOM 10 min — odd 10 swings, even 5 push-ups", d:"1 min each", sets:10, cue:"swing"}],
+  "Plank on the handles": [
+    {n:"Plank on the handles", d:"20s", sets:3, cue:"plank"},
+    {n:"Plank on the handles", d:"30s", sets:3, cue:"plank"}],
+  "Hollow hold": [
+    {n:"Dead bug", d:"20s", sets:3, cue:"hollow"},
+    {n:"Hollow hold", d:"20s", sets:3, cue:"hollow"}],
+  "Chair dips": [
+    {n:"Chair dips — feet close in", d:"6", sets:3, cue:"dips"},
+    {n:"Chair dips", d:"8", sets:3, cue:"dips"}],
+  "Complex — clean, press, squat, swing": [
+    {n:"Complex — clean, press, squat", d:"3 each side", sets:3, cue:"cleanpress"},
+    {n:"Complex — clean, press, squat, swing", d:"4 each side", sets:4, cue:"cleanpress"}]
+};
+/* The item as you should actually do it tonight. Keeps a link back to the
+   written version, because the tick grid indexes against that. */
+function atLevel(w){
+  const lv = startLevel();
+  if(lv >= 2) return w;
+  const r = REGRESS[w.n];
+  if(!r) return w;
+  const pick = r[lv];
+  if(!pick) return w;
+  return Object.assign({}, w, pick, { base:w, eased:true });
+}
+/* Where a scaled item sits in the written programme. */
+function workIndex(sk, w){ return SESSIONS[sk].work.indexOf(w.base || w); }
+
 function workFor(sk, express){
   const s = SESSIONS[sk];
-  return express ? s.work.filter(function(w){ return w.core; }) : s.work;
+  const list = express ? s.work.filter(function(w){ return w.core; }) : s.work;
+  return list.map(atLevel);
 }
 function minutesFor(sk, week, express){
   const s = SESSIONS[sk];
@@ -2732,12 +2829,12 @@ function renderSession(){
   const lateish = ["late","lastCall","over"].indexOf(phase) > -1;
 
   const rows = list.map(function(w){
-    const idx = s.work.indexOf(w);
+    const idx = workIndex(sk, w);
     const sets = expressMode ? Math.max(2, Math.ceil(setsFor(w,week)/2)) : setsFor(w,week);
     const on = ticked.indexOf(idx) > -1;
     return '<li><div class="lift" role="checkbox" tabindex="0" aria-checked="'+on+'" data-i="'+idx+'">'
       +'<span class="tick"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8.5 6 12.5 14 3.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
-      +'<span class="lift-n">'+w.n+'</span>'
+      +'<span class="lift-n">'+w.n+(w.eased ? ' <span class="eased">eased</span>' : "")+'</span>'
       +'<span class="lift-d">'+sets+' × '+w.d+'</span>'
       +'<button class="how" type="button" data-cue="'+idx+'" aria-expanded="false" aria-controls="cue-'+idx+'">How</button>'
       +'</div><div class="cue" id="cue-'+idx+'" hidden>'+cueHTML(w.cue)+'</div></li>';
@@ -3940,6 +4037,9 @@ const SETUP_Q = [
   { id:"goal", h:"What are you actually after?",
     p:"It sets what the app leads with.",
     opts:[["strong","Get stronger"],["lean","Lose weight"],["order","Sort my life out"],["consistent","Just be consistent"]] },
+  { id:"level", h:"How many full push-ups can you do right now?",
+    p:"Honestly, today, not on a good day. It sets where the hard movements start \u2014 the rest of the programme is the same either way.",
+    opts:[["0","None yet"],["1","One to four"],["2","Five or more"]] },
   { id:"target", h:"How many sessions a week can you genuinely hold?",
     p:"Not the number you would like. People asked for six stick worst; people asked for two stick best.",
     opts:[["2","2"],["3","3"],["4","4"],["5","5"]] },
@@ -3984,6 +4084,7 @@ function renderSetup(){
 
   document.getElementById("setup-done").addEventListener("click", function(){
     if(setupAnswers.goal){ state.goal = setupAnswers.goal; applyGoalFocus(); }
+    if(setupAnswers.level !== undefined) state.level = parseInt(setupAnswers.level, 10);
     if(setupAnswers.target) state.target = parseInt(setupAnswers.target, 10);
     if(setupAnswers.bed) areaCfg().sleep.by = parseInt(setupAnswers.bed, 10);
     if(setupAnswers.cap) areaCfg().money.cap = parseInt(setupAnswers.cap, 10);
@@ -4141,6 +4242,27 @@ function applyGoalFocus(){
   ringRot = -60 * ringFocus;
 }
 
+function renderLevelPicker(){
+  const host = document.getElementById("level-opts"), note = document.getElementById("level-note");
+  if(!host) return;
+  const lv = startLevel();
+  host.innerHTML = LEVELS.map(function(name, i){
+    return '<button class="setup-opt" type="button" data-lv="' + i + '" aria-pressed="'
+      + (i === lv) + '">' + esc(name) + '</button>';
+  }).join("");
+  const eased = Object.keys(REGRESS).length;
+  note.textContent = lv >= 2
+    ? "Every movement exactly as the programme writes it."
+    : "The " + eased + " hardest movements are swapped for a form you can actually finish. "
+      + "Swings, squats, rows and carries are untouched \u2014 they were never the problem.";
+  host.querySelectorAll("[data-lv]").forEach(function(b){
+    b.addEventListener("click", function(){
+      state.level = Number(b.dataset.lv);
+      save(); renderAll();
+    });
+  });
+}
+
 function renderGoal(){
   const host = document.getElementById("goal-opts");
   if(!host) return;
@@ -4204,6 +4326,7 @@ var SMode = (function(){
     }).join("");
 
     el("sm-name").textContent = w.n;
+    el("sm-name").title = w.eased ? "An easier form than the programme writes" : "";
     el("sm-dose").textContent = w.d;
     el("sm-sets").textContent = got + " of " + want + " sets";
     el("sm-cue").innerHTML = cue
@@ -4247,7 +4370,7 @@ var SMode = (function(){
        agrees with what actually happened. */
     const ticks = [];
     list.forEach(function(w, n){
-      if((setsDone[n] || 0) >= targetSets(w)) ticks.push(SESSIONS[sk].work.indexOf(w));
+      if((setsDone[n] || 0) >= targetSets(w)) ticks.push(workIndex(sk, w));
     });
     state.ticks[TODAY_K] = ticks.filter(function(x){ return x > -1; });
     /* A bell tapped for a movement you then skipped isn't a record of
@@ -4413,6 +4536,7 @@ function renderAll(){
   if(ringCollapsed) draw("strip", renderStrip);
   draw("calendar", renderCal); draw("ledger", renderLedger); draw("programme", renderProgramme);
   draw("appearance", renderAppearance);
+  draw("level", renderLevelPicker);
   draw("goal", renderGoal);
   draw("key", renderKeyBlock);
   /* renderAll runs once during boot, before this module is assigned, so this
