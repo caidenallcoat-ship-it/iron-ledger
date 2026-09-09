@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T10:14:22.731Z";</script>
+<script>window.__BUILD__ = "2026-09-09T10:26:34.373Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -487,6 +487,28 @@
     white-space:nowrap}
   .rank-track{height:4px;background:var(--surface2);margin:12px 0 11px}
   .rank-track i{display:block;height:100%;background:var(--ink2)}
+  /* Earning and spending are one unit, so the panel butts against the rank
+     block above it rather than floating a section gap away with no top edge. */
+  .rew{border:1px solid var(--line);border-top:0;background:var(--surface2);
+    padding:15px 17px}
+  #s-train .rew{margin-top:calc(-1 * var(--sec-gap))}
+  .rew[data-on="0"]{opacity:.72}
+  .rew-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .rew-lab{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--muted)}
+  .rew-held{font-family:"Archivo Black",Arial,sans-serif;font-size:15px;color:var(--warn);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rew[data-on="0"] .rew-held{color:var(--muted)}
+  .rew-note{font-size:12.5px;line-height:1.6;color:var(--muted);margin-top:9px}
+  .rew-note b{color:var(--ink2)}
+  .rew-acts{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+  .rew-acts button{font-family:"Archivo",sans-serif;font-size:13.5px;font-weight:500;
+    padding:11px 15px;min-height:44px;background:transparent;border:1px solid var(--line2);
+    color:var(--ink2)}
+  .rew-acts button:not(:disabled):hover{border-color:var(--ink);color:var(--ink)}
+  .rew-acts button:disabled{opacity:.35;cursor:default}
+  .rew-taken{border-color:var(--warn)}
+
   .rank-note{font-size:12.5px;line-height:1.6;color:var(--muted)}
   .rank-note b{color:var(--ink2)}
 
@@ -663,6 +685,8 @@
   .cell[data-s="due"]{background:var(--warn)}
   .cell[data-s="sched"]{background:transparent;border:1.5px dashed var(--line2)}
   .cell[data-s="none"]{background:var(--surface2);opacity:.35}
+  /* A spent pass reads as neither done nor missed, because it was neither. */
+  .cell[data-s="pass"]{background:transparent;border:1.5px solid var(--warn)}
   .cell[data-click="1"]{cursor:pointer}
   .cell[data-click="1"]:hover{outline:2px solid var(--ink);outline-offset:1px}
   .legend{display:flex;gap:15px;flex-wrap:wrap;margin-top:14px;font-family:"IBM Plex Mono",monospace;
@@ -833,6 +857,7 @@
     <p class="faults" id="faults" hidden></p>
 
     <div class="rank" id="rank"></div>
+    <div class="rew" id="rew" data-on="0"></div>
 
     <section class="figs" id="figs"></section>
     <div class="target-bar" id="target-bar"></div>
@@ -1248,6 +1273,10 @@ const BLANK = {
   /* Ad-hoc jobs that only matter this week, per area. Unfinished ones carry
      forward with a count rather than quietly disappearing. */
   weekly:{}, weeklyWeek:null, weekReviewed:null,
+  /* "YYYY-MM-DD": "rest" | "food" — a pass spent on that day. Earned is
+     always derived from the session count, never stored, so the two can't
+     drift apart. */
+  passes:{},
   onboarded:false, goal:null, slot:null
 };
 const LS_KEY = "iron-ledger-v2";
@@ -1470,11 +1499,16 @@ function weekStreak(){
 }
 function lastSession(){ const ks = Object.keys(state.done).sort(); return ks.length ? ks[ks.length-1] : null; }
 function mondayOf(d){ return addDays(d, -((d.getDay()+6)%7)); }
-function sessionsThisWeek(){ return doneInWeek(mondayOf(TODAY)); }
+function sessionsThisWeek(){ return creditedInWeek(mondayOf(TODAY)); }
+function trainedThisWeek(){ return doneInWeek(mondayOf(TODAY)); }
 function doneInWeek(mon){
   let n=0; for(let i=0;i<7;i++) if(state.done[key(addDays(mon,i))]) n++;
   return n;
 }
+/* The week as the target sees it: sessions plus any rest days you'd earned
+   and chose to spend. Kept separate from doneInWeek so the calendar and the
+   ledger still report what actually happened. */
+function creditedInWeek(mon){ return doneInWeek(mon) + restDaysInWeek(mon); }
 
 /* The week is the unit of success, not the day. Adherence research is blunt
    about this: people asked for six sessions a week stick worst, people asked
@@ -1495,7 +1529,11 @@ function consistency28(){
   if(days < 7) return null;
   const expected = Math.max(1, Math.round((days/7) * weekTarget()));
   let did = 0, d = from;
-  while(key(d) <= TODAY_K){ if(state.done[key(d)]) did++; d = addDays(d,1); }
+  while(key(d) <= TODAY_K){
+    const k = key(d);
+    if(state.done[k] || passLog()[k] === "rest") did++;
+    d = addDays(d,1);
+  }
   return {pct: Math.min(100, Math.round(did/expected*100)), did:did, expected:expected};
 }
 
@@ -1505,7 +1543,12 @@ function consistency28(){
 function drifting(){
   const last = lastSession();
   const gap = last ? daysBetween(last, TODAY_K) : null;
-  return gap !== null && gap >= 2 && sessionsThisWeek() < weekTarget();
+  if(gap === null || gap < 2) return false;
+  /* A rest day inside the gap was a decision, not a drift. */
+  for(let i=0;i<gap;i++){
+    if(passLog()[key(addDays(TODAY, -i))] === "rest") return false;
+  }
+  return sessionsThisWeek() < weekTarget();
 }
 /* ---------- earned standing ----------
    Not points, and never a reward. The only thing that changes is how the app
@@ -1582,6 +1625,63 @@ const EARNED = {
     slipping:"{n} sessions in the book and a bad month on the page. Even this doesn’t run on its own.",
     gone:    "{n} sessions. You’ve been at this long enough to know exactly what the next fortnight decides."}
 };
+/* ---------- passes ----------
+   A rest day or a free meal you earned rather than took. Deliberately built
+   so it can't become the main mechanic:
+
+   - Nothing at all until Regular. Before that there is nothing to protect
+     and handing out days off would be the flattery this app avoids.
+   - Three held at most. You can't disappear for a fortnight on saved credit;
+     earning while full is simply wasted, which is the point.
+   - Today only, never backdated. Deciding to rest is a decision; applying a
+     rest day to a Tuesday you already missed is editing the past, and the
+     ledger is the one thing here that has to stay honest.
+   - It protects your standing, never your rank. Rank counts work done, and a
+     day off isn't work. */
+const PASS_FROM = 12;    // Regular
+const PASS_EVERY = 6;    // one more per six sessions after that
+const PASS_HOLD = 3;
+
+function passesEarned(){
+  const n = credited();
+  return n < PASS_FROM ? 0 : 1 + Math.floor((n - PASS_FROM) / PASS_EVERY);
+}
+function passLog(){ return state.passes || (state.passes = {}); }
+function passesSpent(){ return Object.keys(passLog()).length; }
+function passesHeld(){
+  return Math.max(0, Math.min(PASS_HOLD, passesEarned() - passesSpent()));
+}
+function passOn(k){ return passLog()[k] || null; }
+/* How many more sessions until the next one lands, or 0 when full. */
+function passNextIn(){
+  if(passesHeld() >= PASS_HOLD) return 0;
+  const n = credited();
+  if(n < PASS_FROM) return PASS_FROM - n;
+  return PASS_EVERY - ((n - PASS_FROM) % PASS_EVERY);
+}
+function spendPass(kind){
+  if(passesHeld() < 1 || passOn(TODAY_K)) return false;
+  /* You can't rest a day you already trained. Eating freely on one is fine. */
+  if(kind === "rest" && state.done[TODAY_K]) return false;
+  passLog()[TODAY_K] = kind;
+  save(); renderAll();
+  return true;
+}
+function returnPass(){
+  /* Same-day undo only — a mis-tap shouldn't cost you a day you earned. */
+  if(!passOn(TODAY_K)) return false;
+  delete passLog()[TODAY_K];
+  save(); renderAll();
+  return true;
+}
+/* Rest days count toward the week and the 28-day window, so taking one
+   doesn't read as slipping. They never count toward rank. */
+function restDaysInWeek(mon){
+  let n = 0;
+  for(let i=0;i<7;i++) if(passLog()[key(addDays(mon,i))] === "rest") n++;
+  return n;
+}
+
 function earnedLine(){
   /* The first one gets its own line. Every other message here compares you
      to your own record, and on the first night there isn't one — and the
@@ -1675,7 +1775,7 @@ function setMark(k, field, on){
   if(on) m[field] = true; else delete m[field];
   if(Object.keys(m).length) state.daily[k] = m; else delete state.daily[k];
 }
-function eatOK(m){ return Boolean(m.protein && m.nojunk); }
+function eatOK(m, k){ return k && passLog()[k] === "food" ? true : Boolean(m.protein && m.nojunk); }
 function sleepOK(m){ return Boolean(m.bed); }
 
 /* Days this week where a predicate held. */
@@ -1684,7 +1784,7 @@ function daysHitThisWeek(pred){
   let n = 0;
   for(let i=0;i<7;i++){
     const k = key(addDays(mon,i));
-    if(k <= TODAY_K && pred(marks(k))) n++;
+    if(k <= TODAY_K && pred(marks(k), k)) n++;
   }
   return n;
 }
@@ -1951,6 +2051,62 @@ function renderRank(){
                 : 'Top of the list, and it stays there. ')
       + 'Rank only counts up \u2014 a bad month can\u2019t take it off you. '
       + 'The short version counts as half.</p>';
+}
+
+function renderRewards(){
+  const host = document.getElementById("rew");
+  const n = credited(), held = passesHeld(), taken = passOn(TODAY_K);
+  const open = n >= PASS_FROM;
+  host.dataset.on = open ? "1" : "0";
+
+  if(!open){
+    host.innerHTML =
+      '<div class="rew-top"><span class="rew-lab">Rewards</span>'
+        + '<span class="rew-held">Locked</span></div>'
+      + '<p class="rew-note">Opens at <b>Regular</b> \u2014 ' + plural(PASS_FROM - n, "session")
+        + ' away. From there you earn a day off every ' + PASS_EVERY + ' sessions: a rest day that '
+        + 'still counts toward your week, or a meal that doesn\u2019t count against your eating. '
+        + 'Nothing before then, because there\u2019s nothing to protect yet.</p>';
+    return;
+  }
+
+  const nextIn = passNextIn();
+  const held_s = held + " held";
+
+  if(taken){
+    host.innerHTML =
+      '<div class="rew-top"><span class="rew-lab">Rewards</span>'
+        + '<span class="rew-held">' + held_s + '</span></div>'
+      + '<p class="rew-note">'
+        + (taken === "rest"
+            ? 'Today is a <b>rest day</b>. It counts toward your week and it won\u2019t mark your record \u2014 but it isn\u2019t a session, so it doesn\u2019t move your rank.'
+            : 'Today is a <b>free meal day</b>. Eating doesn\u2019t count against you. Still log it; still in moderation.')
+        + '</p>'
+      + '<div class="rew-acts"><button class="rew-taken" type="button" id="rew-undo">Changed my mind</button></div>';
+    document.getElementById("rew-undo").addEventListener("click", returnPass);
+    return;
+  }
+
+  const trained = !!state.done[TODAY_K];
+  host.innerHTML =
+    '<div class="rew-top"><span class="rew-lab">Rewards</span>'
+      + '<span class="rew-held">' + held_s + '</span></div>'
+    + '<p class="rew-note">'
+      + (held
+          ? 'Spend one on <b>today</b> only \u2014 a day off you decide on is rest, one you apply to last Tuesday is just editing the record. Neither kind touches your rank: rank counts work done, and a day off isn\u2019t work.'
+          : 'None held. The next lands in <b>' + plural(nextIn, "session") + '</b>.')
+      + (held && nextIn ? ' Next in ' + plural(nextIn, "session") + '.' : "")
+      + (held >= PASS_HOLD ? ' You\u2019re holding the maximum \u2014 anything earned now is wasted until you spend one.' : "")
+      + '</p>'
+    + '<div class="rew-acts">'
+      + '<button type="button" id="rew-rest"' + (held && !trained ? "" : " disabled") + '>'
+        + (trained ? "Rest day \u2014 you\u2019ve trained" : "Take a rest day") + '</button>'
+      + '<button type="button" id="rew-food"' + (held ? "" : " disabled") + '>Free meal today</button>'
+    + '</div>';
+
+  const r = document.getElementById("rew-rest"), f = document.getElementById("rew-food");
+  if(r) r.addEventListener("click", function(){ spendPass("rest"); });
+  if(f) f.addEventListener("click", function(){ spendPass("food"); });
 }
 
 function renderFigs(){
@@ -2455,20 +2611,24 @@ function renderCal(){
       /* No day is "scheduled" any more, so no day can be missed. A blank day
          is just a day you didn't train; only the week bar below passes or
          fails. */
+      const pass = passOn(k);
       if(rec) st = rec.express ? "express" : "done";
+      else if(pass) st = "pass";
       else if(k > TODAY_K) st = "none";
       else if(k === TODAY_K) st = "due";
       else if(k < state.start) st = "none";
       else st = "rest";
       const clickable = k <= TODAY_K && k >= state.start;
       const label = d.toLocaleDateString(undefined,{day:"numeric",month:"short"})
-        +(rec ? " — Session "+rec.key+" "+(rec.express ? "· short version" : "· done") : " — no session");
+        +(rec ? " — Session "+rec.key+" "+(rec.express ? "· short version" : "· done")
+              : pass ? (pass === "rest" ? " — rest day, earned" : " — free meal day, earned")
+              : " — no session");
       html += '<button class="cell" type="button" data-s="'+st+'" data-k="'+k+'"'
         +(clickable ? ' data-click="1"' : " disabled")
         +' title="'+esc(label)+'" aria-label="'+esc(label)+'"></button>';
     }
     /* Eighth row: did the week itself clear the target? */
-    const mon = addDays(first, w*7), n = doneInWeek(mon), tgt = weekTarget();
+    const mon = addDays(first, w*7), n = creditedInWeek(mon), tgt = weekTarget();
     const future = key(mon) > TODAY_K;
     const current = key(mon) <= TODAY_K && key(addDays(mon,6)) >= TODAY_K;
     const before = key(addDays(mon,6)) < state.start;
@@ -3503,7 +3663,7 @@ function lastWeekFigures(){
   for(let i=0;i<7;i++){
     const k = key(addDays(lastMon,i));
     const m = marks(k);
-    if(eatOK(m)) eat++;
+    if(eatOK(m, k)) eat++;
     if(sleepOK(m)) sleep++;
     spent += spendOn(k);
   }
@@ -3874,6 +4034,7 @@ function renderAll(){
   renderFaults = [];
   draw("masthead", renderMasthead); draw("clock", renderClock);
   draw("verdict", renderVerdict);   draw("rank", renderRank);
+  draw("rewards", renderRewards);
   draw("figures", renderFigs);      draw("target", renderTarget);
   draw("setup", renderSetup);
   draw("review", renderReview);

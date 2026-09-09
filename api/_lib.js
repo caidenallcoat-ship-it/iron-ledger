@@ -170,6 +170,7 @@ export function buildNudge(state, todayKey) {
   }
 
   const done = state.done || {};
+  const passes = state.passes || {};
   const skips = state.skips || [];
   const ticks = state.ticks || {};
   const target = Number(state.target) >= 1 && Number(state.target) <= 7 ? Number(state.target) : 3;
@@ -183,7 +184,10 @@ export function buildNudge(state, todayKey) {
   // This week, Monday-start.
   const monday = addDays(todayKey, -((dow + 6) % 7));
   let weekDone = 0;
-  for (let i = 0; i < 7; i++) if (done[addDays(monday, i)]) weekDone++;
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(monday, i);
+    if (done[k] || passes[k] === "rest") weekDone++;
+  }
   // Every remaining day is a possible training day now.
   let daysLeft = 0;
   for (let i = 0; i < 7; i++) if (addDays(monday, i) >= todayKey) daysLeft++;
@@ -300,6 +304,15 @@ export function buildNudge(state, todayKey) {
 
   const link = "";
   const T = "Iron Ledger";
+
+  /* A rest day you earned and chose is the one evening this app has nothing
+     to say about training. Anything else outstanding still gets its line —
+     the day off was from the session, not from the bins. */
+  if (passes[todayKey] === "rest") {
+    return jobLine
+      ? { title: T, body: `Rest day, earned.${jobLine}` }
+      : null;
+  }
 
   // Week already met — nothing is owed.
   if (weekDone >= target) {

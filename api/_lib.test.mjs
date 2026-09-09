@@ -60,5 +60,35 @@ ok("day one is untouched",
 ok("never finished a session is untouched",
   buildNudge(base({}), TODAY).body.includes("never finished a session"));
 
+console.log("");
+console.log("earned rest days");
+const restToday = buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: "rest" } }), TODAY);
+ok("a rest day with nothing else outstanding says nothing at all",
+  restToday === null, JSON.stringify(restToday));
+
+const restPlusJob = buildNudge(
+  base(hist(20, 1, 3), {
+    passes: { [TODAY]: "rest" },
+    chores: [{ id: "b", name: "Bins", every: 7, last: "2026-08-01" }],
+  }), TODAY);
+ok("a rest day still names other work",
+  restPlusJob && restPlusJob.body.startsWith("Rest day, earned.") && restPlusJob.body.length > 20,
+  restPlusJob && restPlusJob.body);
+ok("a rest day never mentions a session",
+  !restPlusJob || !/Session [A-E]/.test(restPlusJob.body), restPlusJob && restPlusJob.body);
+
+// Target 2, one real session on Tuesday, and Monday covered by a rest day:
+// that is a met week, so there is nothing to say.
+const oneSession = { "2026-09-08": { key: "A", at: "x", express: false } };
+ok("a rest day counts toward the week",
+  buildNudge(base(oneSession, { target: 2, passes: { "2026-09-07": "rest" } }), TODAY) === null,
+  JSON.stringify(buildNudge(base(oneSession, { target: 2, passes: { "2026-09-07": "rest" } }), TODAY)));
+ok("without it the same week is still short",
+  buildNudge(base(oneSession, { target: 2 }), TODAY) !== null);
+ok("a rest day on a day you trained is not counted twice",
+  buildNudge(base(oneSession, { target: 2, passes: { "2026-09-08": "rest" } }), TODAY) !== null);
+ok("a food pass does not silence training",
+  /Session [A-E]/.test(buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: "food" } }), TODAY).body));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
