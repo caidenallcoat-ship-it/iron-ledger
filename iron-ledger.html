@@ -1814,11 +1814,46 @@ const RANKS = [
 /* The short version counts as half. It keeps the week and it beats nothing,
    but it isn’t the same work and the rank shouldn’t pretend it is. The panel
    says so out loud — a hidden multiplier is just a slot machine. */
-function credited(){
+function rawCredited(){
   let n = 0;
   for(const k in state.done) n += state.done[k].express ? 0.5 : 1;
   return Math.floor(n);
 }
+
+/* ---------- and it can go down ----------
+   This app used to insist rank only ever climbed, on the grounds that taking
+   it away turns it into a streak. That was half right. A streak resets to
+   zero on one miss, which is the thing worth avoiding; a rank that erodes
+   after weeks of nothing is just true. Stop for six months and come back to
+   "Ingrained" and the app is lying to you.
+
+   So: one empty week costs nothing, because one bad week is life. From the
+   second consecutive empty week it starts costing, and it keeps costing while
+   you are away. It is the CURRENT run of empty weeks, not every gap you have
+   ever had — a fortnight lost last year was earned back by the training that
+   followed it, and the first session back clears the penalty entirely. That
+   matches the one thing this app has always said: the first session back is
+   the only hard one. */
+const DECAY_FREE_WEEKS = 1;      // the first empty week is free
+const DECAY_PER_WEEK = 2;        // then this much off the count, per week
+
+/* Consecutive whole weeks with nothing logged, counting back from the week
+   before this one. This week is never counted — it isn't over yet. */
+function emptyWeeksNow(){
+  let n = 0, mon = addDays(mondayOf(TODAY), -7);
+  const floor = mondayOf(parseKey(state.start));
+  while(mon >= floor){
+    if(doneInWeek(mon) > 0) break;
+    n++;
+    mon = addDays(mon, -7);
+  }
+  return n;
+}
+function decayNow(){
+  if(doneInWeek(mondayOf(TODAY)) > 0) return 0;    // trained this week: nothing owed
+  return Math.max(0, emptyWeeksNow() - DECAY_FREE_WEEKS) * DECAY_PER_WEEK;
+}
+function credited(){ return Math.max(0, rawCredited() - decayNow()); }
 function rankOf(n){
   let i = 0;
   for(let j = 0; j < RANKS.length; j++) if(n >= RANKS[j].at) i = j;
@@ -2514,19 +2549,25 @@ function renderVerdict(){
 
 function renderRank(){
   const host = document.getElementById("rank");
-  const n = credited(), r = rankOf(n);
+  const n = credited(), r = rankOf(n), lost = decayNow();
   const span = r.next ? r.next.at - r.at : 1;
   const pct = r.next ? Math.round((n - r.at) / span * 100) : 100;
   host.dataset.st = standingOf();
   host.innerHTML =
     '<div class="rank-top"><span class="rank-name">' + r.name + '</span>'
-      + '<span class="rank-n">' + plural(n, "session") + ' credited</span></div>'
+      + '<span class="rank-n">' + plural(n, "session") + ' credited'
+        + (lost ? ' \u00b7 \u2212' + lost : '') + '</span></div>'
     + '<div class="rank-track"><i style="width:' + Math.max(0, Math.min(100, pct)) + '%"></i></div>'
     + '<p class="rank-note">'
       + (r.next ? plural(r.to, "session") + ' to <b>' + r.next.name + '</b>. '
-                : 'Top of the list, and it stays there. ')
-      + 'Rank only counts up \u2014 a bad month can\u2019t take it off you. '
-      + 'The short version counts as half.</p>';
+                : 'Top of the list. ')
+      + (lost
+          ? '<b>' + plural(emptyWeeksNow(), "week") + ' with nothing logged has cost you '
+            + plural(lost, "session") + '.</b> Not gone \u2014 one session back and the whole '
+            + 'penalty lifts. The first one back is the only hard one.'
+          : 'One empty week costs nothing. After that it starts coming off, and comes '
+            + 'straight back the session you return. The short version counts as half.')
+      + '</p>';
 }
 
 function areaColour(a){
@@ -5063,6 +5104,12 @@ var SMode = (function(){
     },
     setDone: function(){
       const w = list[i], want = targetSets(w);
+      /* Once the movement is finished the button is dead until the advance
+         lands. Without this a second tap on the last set counted a set that
+         did not happen AND queued a second advance, which skipped the next
+         movement entirely — five taps and one stray thumb went from swings
+         straight past goblet squats to the push-ups. */
+      if((setsDone[i] || 0) >= want) return;
       setsDone[i] = (setsDone[i] || 0) + 1;
       if(setsDone[i] >= want){
         render();

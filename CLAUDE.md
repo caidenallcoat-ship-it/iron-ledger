@@ -74,8 +74,13 @@ explicit choice — do not soften it.
   on this; `DAY` at the top of the script holds it.
 - Chores are a clock, not a streak: report days-since against an interval.
   Never convert them to a streak mechanic.
-- Rank counts work done and only ever goes up. Never make it fall — that turns
-  it into a streak, which is the mechanic this app exists to avoid.
+- Rank counts work done, and it CAN fall — but only after sustained absence.
+  One empty week costs nothing; from the second consecutive empty week it
+  erodes at DECAY_PER_WEEK, and the first session back clears the penalty
+  outright. The rule that matters is that a single miss must never cost
+  anything: a streak resets to zero on one bad day and that is the mechanic
+  this app exists to avoid. Slow erosion is not that, and a rank that only
+  ever climbs eventually lies about what you can do.
 - An earned rest day lowers the bar; it never fills the number in. The week
   still reports the sessions actually done ("2 of 3"), it just isn't judged
   short. `weekBar()` / `weekMet()` hold that distinction — use them for any
