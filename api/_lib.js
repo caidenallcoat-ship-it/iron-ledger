@@ -214,6 +214,19 @@ export function hasPass(passes, k, kind) {
   return Array.isArray(v) ? v.indexOf(kind) > -1 : v === kind;
 }
 
+/* The training time this record actually set. It was hardcoded to 18:30 back
+   when there was one person and one time, and it survived the move to reading
+   the slot from the record — so the only message that named a time named the
+   wrong one for anybody who had chosen differently. */
+export function slotText(state) {
+  const raw = state && state.slot;
+  if (raw === null || raw === undefined || raw === "") return "18:30";
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 23.99) return "18:30";
+  const h = Math.floor(n), m = Math.round((n - h) * 60);
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
 export function buildNudge(state, todayKey) {
   if (!state) {
     return { title: "Iron Ledger", body: "No record found. Open the app and log something." };
@@ -410,7 +423,7 @@ export function buildNudge(state, todayKey) {
       title: T,
       body: started
         ? `You ticked ${plural(ticks[todayKey].length, "exercise")} and stopped. Session ${sk} — ${session.name}, about 30 minutes. Finish it.`
-        : `Day one — Session ${sk}, ${session.name}, about 30 minutes from 18:30. Target is ${plural(target, "session")} a week, on whatever days suit.`,
+        : `Day one — Session ${sk}, ${session.name}, about 30 minutes from ${slotText(state)}. Target is ${plural(target, "session")} a week, on whatever days suit.`,
     };
   }
 

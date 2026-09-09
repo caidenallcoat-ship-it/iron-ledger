@@ -139,6 +139,20 @@ ok("a quiet evening does not lower what the week asks for", quietWeek !== null,
   JSON.stringify(quietWeek));
 
 console.log("");
+console.log("day one names the right time");
+const { slotText } = await import("./_lib.js");
+ok("a 17:30 slot reads as 17:30", slotText({ slot: 17.5 }) === "17:30");
+ok("a 19:30 slot reads as 19:30", slotText({ slot: 19.5 }) === "19:30");
+ok("no slot falls back rather than inventing one", slotText({}) === "18:30");
+ok("nonsense falls back too", slotText({ slot: "half six" }) === "18:30");
+// The only message that names a time, and it named the wrong one for anyone
+// who had not chosen 18:30.
+const dayOne = buildNudge(base({}, { start: TODAY, slot: 17.5 }), TODAY);
+ok("day one uses the record's own time",
+  dayOne.body.includes("from 17:30"), dayOne.body);
+ok("and not the old hardcoded one", !dayOne.body.includes("18:30"), dayOne.body);
+
+console.log("");
 console.log("evenings already spoken for");
 const busyNight = buildNudge(
   base(hist(20, 1, 3), { busy: { [TODAY]: "Mum's birthday" } }), TODAY);
