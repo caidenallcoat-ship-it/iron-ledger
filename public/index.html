@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T08:34:22.023Z";</script>
+<script>window.__BUILD__ = "2026-09-09T08:38:34.760Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2799,18 +2799,15 @@ function wireRingCollapse(){
   }
   if(!wrap) return;
 
-  /* Watch the ring itself rather than guessing from scroll offsets. The strip
-     appears exactly when the ring has left the screen, which is the thing the
-     user is actually reacting to. */
-  if("IntersectionObserver" in window){
-    new IntersectionObserver(function(entries){
-      setRingCollapsed(!entries[0].isIntersecting);
-    }, { rootMargin: "-40px 0px 0px 0px", threshold: 0 }).observe(wrap);
-  } else {
-    addEventListener("scroll", function(){
-      setRingCollapsed(window.scrollY > wrap.offsetHeight);
-    }, {passive:true});
+  /* Deliberately a plain measurement rather than an IntersectionObserver:
+     this is verifiable anywhere, and there is no layout change to race with
+     now that the strip is fixed and the ring keeps its height. */
+  function update(){
+    setRingCollapsed(wrap.getBoundingClientRect().bottom < 40);
   }
+  addEventListener("scroll", update, {passive:true});
+  addEventListener("resize", update);
+  update();
 }
 
 function wireRing(){
