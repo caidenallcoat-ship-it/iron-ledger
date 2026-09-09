@@ -1,4 +1,5 @@
 import { buildNudge, rankOf } from "./_lib.js";
+import { bedHour, inBedOnTime } from "./health.js";
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -119,6 +120,29 @@ ok("an array-shaped rest day lowers the week the same way",
   buildNudge(base(oneSession, { target: 2, passes: { "2026-09-07": ["rest"] } }), TODAY) === null);
 ok("an empty array is not a pass",
   /Session [A-E]/.test(buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: [] } }), TODAY).body));
+
+console.log("");
+console.log("health: reading a bedtime");
+ok('"23:12" is 23.2', Math.abs(bedHour("23:12") - 23.2) < 0.01, String(bedHour("23:12")));
+ok('"01:30" is 1.5', bedHour("01:30") === 1.5, String(bedHour("01:30")));
+ok("a full timestamp is read as wall-clock",
+  Math.abs(bedHour("2026-09-08T23:45:00Z") - 23.75) < 0.01, String(bedHour("2026-09-08T23:45:00Z")));
+ok("a bare number passes through", bedHour(22.5) === 22.5);
+ok("nonsense is null", bedHour("last night") === null && bedHour("") === null && bedHour(null) === null);
+ok("an impossible hour is null", bedHour(99) === null && bedHour("47:00") === null);
+
+console.log("");
+console.log("health: was that on time");
+// The whole trick: after midnight is LATER than an 11pm target, not earlier.
+ok("22:30 beats an 11pm target", inBedOnTime(22.5, 23) === true);
+ok("23:00 exactly meets it", inBedOnTime(23, 23) === true);
+ok("23:30 misses it", inBedOnTime(23.5, 23) === false);
+ok("00:30 misses it", inBedOnTime(0.5, 23) === false);
+ok("01:30 misses it", inBedOnTime(1.5, 23) === false);
+ok("02:00 misses a midnight target", inBedOnTime(2, 0) === false);
+ok("23:00 beats a midnight target", inBedOnTime(23, 0) === true);
+ok("00:30 beats a 1am target", inBedOnTime(0.5, 1) === true);
+ok("an unreadable time stays unreadable", inBedOnTime(null, 23) === null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

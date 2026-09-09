@@ -91,3 +91,65 @@ means handing a third party standing access to your data to save a tap, and
 an integration that breaks silently six months later. A Shortcut you can read
 in full, that runs when you say so, is a better trade for one person's
 training log.
+
+## Apple Health
+
+Health has no web API and never will — HealthKit is native only, so this page
+cannot read a single sample from it however it is asked. Shortcuts can, and
+Shortcuts can make an HTTP request, so that is the whole bridge.
+
+```
+POST https://iron-ledger-cade10.vercel.app/api/health
+Header:  x-ledger-key: <your key>
+Body:    {"date": "2026-09-08", "sleep": {"asleepAt": "23:12", "hours": 7.4}}
+```
+
+`date` is optional and defaults to today. `asleepAt` takes `"23:12"`, a full
+timestamp, or a plain number of hours. Anything after midnight is treated as
+later than an 11pm target, not earlier — 01:30 is a late night, not an early
+one.
+
+The response says what it decided:
+
+```json
+{ "ok": true, "date": "2026-09-08", "asleepAt": 23.2,
+  "target": 23, "onTime": false, "hours": 7.4 }
+```
+
+### Shortcut 4 — last night's sleep, every morning
+
+1. **Find Health Samples** — Type: *Sleep Analysis*, Sort by *Start Date*,
+   Limit 1, filtered to *Started* — *is today* (or yesterday, whichever your
+   watch writes)
+2. **Get Details of Health Sample** → *Start Date* → that is `asleepAt`
+3. **Get Contents of URL** — POST to `/api/health`, header `x-ledger-key`,
+   Request Body **JSON**:
+   - `date` (Text) → the sleep sample's start date formatted `yyyy-MM-dd`
+   - `sleep` (Dictionary) → `asleepAt` = the start date
+4. Automation → **Time of Day** → 09:00 daily → run without asking
+
+The sleep tick in the app then looks after itself. It is the one thing the
+ledger asks you to record that your phone already knows.
+
+### Shortcut 5 — write your session into Health
+
+Kettlebells do not show up in the Fitness app on their own. This puts them
+there, so your rings and Iron Ledger stop disagreeing.
+
+1. **Get Contents of URL** — GET `/api/health` with the key header
+2. **Get Dictionary Value** → `trained`
+3. **If** it is `1`:
+   - **Get Dictionary Value** → `minutes`
+   - **Log Health Sample** → *Workout* → *Functional Strength Training*,
+     duration from that value
+4. Automation → **Time of Day** → 21:30 daily
+
+`/api/health` also returns `restDay`, so a Shortcut can leave you alone on a
+day you have already paid for.
+
+### What is deliberately not here
+
+No weight, no steps, no heart rate. All of them are easy to accept and none of
+them are read by anything in the app, so they would be numbers collected for
+the sake of collecting numbers. Sleep is here because the app already scores
+it and already asks you to tick it by hand.
