@@ -434,6 +434,7 @@
   .setup-why b{color:var(--ink)}
   .field-row{display:flex;gap:10px;flex-wrap:wrap}
   .field-row .field{flex:1;min-width:104px}
+  .field-row .field.grow{flex:1 1 100%}
   .rank{border:1px solid var(--line);background:var(--surface);padding:16px 17px}
   .rank-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
   .rank-name{font-family:"Archivo Black",Arial,sans-serif;font-size:19px;
@@ -1353,6 +1354,8 @@ const BLANK = {
   busy:{},
   weight:{},        // "YYYY-MM-DD": kg, from Health or typed in
   body:{},          // {height: cm, born: yyyy} — asked once, changes rarely
+  bells:null,       // [8] or [16,24] — what you actually own, in kg
+  kitAsked:null,    // the bell we already put on the list, so it asks once
   level:null,       // 0 building up | 1 getting there | 2 as written
   driftSeen:null,   // the suggestion you've already said no to, so it stops asking
   impact:null,      // "low" | "normal" — jumping and skipping, or not
@@ -3418,6 +3421,89 @@ function latestWeight(){
   const ks = Object.keys(weightLog()).sort();
   return ks.length ? { kg: Number(weightLog()[ks[ks.length-1]]), on: ks[ks.length-1] } : null;
 }
+/* ---------- what you actually own ----------
+   The programme was written assuming a rack: "the bell goes up on squats,
+   deadlifts and rows if the last set still feels easy". With one bell it
+   cannot, and an instruction you are unable to follow is worse than no
+   instruction — it reads as the app not knowing what you have.
+
+   One bell is a perfectly good place to start. It just means progress has to
+   come from somewhere other than the number on the side: more reps, fewer
+   hands, slower tempo, longer under load. */
+function bellsOwned(){
+  const b = state.bells;
+  return Array.isArray(b) && b.length ? b.slice().sort(function(x, y){ return x - y; }) : [];
+}
+function heaviestBell(){ const b = bellsOwned(); return b.length ? b[b.length - 1] : null; }
+function oneBellOnly(){ return bellsOwned().length === 1; }
+function setBells(list){
+  const clean = (list || []).map(Number)
+    .filter(function(n){ return isFinite(n) && n >= 2 && n <= 100; })
+    .map(function(n){ return Math.round(n * 2) / 2; });
+  state.bells = clean.length ? [...new Set(clean)].sort(function(a, b){ return a - b; }) : null;
+  save(); renderAll();
+}
+
+/* How to get harder when the weight cannot. Ordered easiest first, and used
+   as advice rather than a substitution — the movement stays the movement. */
+const DENSITY = {
+  "Two-hand swing":"one hand, swapping every five",
+  "Goblet squat":"three seconds down, one second still at the bottom",
+  "Romanian deadlift":"one leg at a time, same reps each side",
+  "Single-arm row":"two seconds held at the top of every rep",
+  "Strict overhead press":"half-kneeling, so nothing helps you but the arm",
+  "Clean & press":"pause a full second in the rack before each press",
+  "Racked reverse lunge":"three seconds down on every step",
+  "Farmer carry":"one bell only, which makes it a suitcase carry",
+  "Suitcase carry":"walk slower and further rather than heavier",
+  "High pull":"pause at the top of each pull",
+  "Floor press":"three seconds down, no bounce off the floor",
+  "Complex — clean, press, squat, swing":"no rest between the four, straight through"
+};
+function densityCue(name){ return DENSITY[name] || "more reps, or slower ones"; }
+
+/* The next bell up the standard ladder: 8, 12, 16, 20, 24, 28, 32. */
+const BELL_LADDER = [8, 12, 16, 20, 24, 28, 32, 36, 40];
+function nextBellUp(){
+  const h = heaviestBell();
+  if(h === null) return null;
+  for(const b of BELL_LADDER) if(b > h) return b;
+  return null;
+}
+
+/* Buying something is the app's suggestion to make only once it has been
+   earned, and only where the kit is genuinely the limit. Four finished weeks
+   is a month of hitting the number you set yourself — enough evidence that
+   this is not a shopping impulse dressed up as training. */
+const KIT_AFTER_WEEKS = 4;
+function kitTaskDue(){
+  if(!oneBellOnly()) return null;
+  const next = nextBellUp();
+  if(!next) return null;
+  if(state.kitAsked === next) return null;          // already asked, once, for this one
+  if(perfectWeeks() < KIT_AFTER_WEEKS) return null;
+  return { next:next, have:heaviestBell(), weeks:perfectWeeks() };
+}
+/* Written into the week's training tasks rather than shown as a banner: it is
+   a thing to do, and the app already has a list for those. */
+function maybeAskForKit(){
+  const due = kitTaskDue();
+  if(!due) return;
+  if(!state.weekly || typeof state.weekly !== "object") state.weekly = {};
+  if(!Array.isArray(state.weekly.train)) state.weekly.train = [];
+  const text = "Order a " + due.next + "kg bell \u2014 you\u2019ve outgrown the " + due.have;
+  const already = state.weekly.train.some(function(t){
+    return String(t.text).toLowerCase() === text.toLowerCase();
+  });
+  if(!already){
+    state.weekly.train.push({
+      id:"w-" + Math.random().toString(36).slice(2, 9), text:text, done:false, via:"kit",
+    });
+  }
+  state.kitAsked = due.next;
+  save();
+}
+
 const REWEIGH_DAYS = 28;
 /* Days since the last reading, or null if there has never been one. */
 function weighAge(){
@@ -4325,6 +4411,10 @@ const SETUP_BODY = [
   { k:"weight", label:"Weight (kg)",  min:20,  max:400, step:0.1 },
   { k:"born",   label:"Year born",    min:1900, max:2100, step:1 }
 ];
+/* Not a number, so it sits outside SETUP_BODY: the programme needs to know
+   whether load can go up at all, and one bell is a different programme from
+   three. */
+const SETUP_BELLS = { k:"bells", label:"Kettlebells you own (kg)", placeholder:"8, or 16 and 24" };
 
 const SETUP_Q = [
   { id:"goal", h:"What are you actually after?",
@@ -4368,6 +4458,9 @@ function commitSetupBody(){
   if(h >= 100 && h <= 250) bodyCfg().height = Math.round(h); else delete bodyCfg().height;
   if(y >= 1900 && y <= TODAY.getFullYear()) bodyCfg().born = Math.round(y); else delete bodyCfg().born;
   if(w >= 20 && w <= 400) weightLog()[TODAY_K] = Math.round(w * 10) / 10;
+  const bells = String(setupAnswers.b_bells || "").split(/[^0-9.]+/).filter(Boolean).map(Number)
+    .filter(function(n){ return isFinite(n) && n >= 2 && n <= 100; });
+  state.bells = bells.length ? [...new Set(bells)].sort(function(a, b){ return a - b; }) : null;
 }
 
 function renderSetup(){
@@ -4387,6 +4480,9 @@ function renderSetup(){
             + '<input id="sb-' + f.k + '" type="number" min="' + f.min + '" max="' + f.max + '"'
             + ' step="' + f.step + '" value="' + esc(setupAnswers["b_" + f.k] || "") + '"></div>';
         }).join("")
+      + '<div class="field grow"><label for="sb-bells">' + SETUP_BELLS.label + '</label>'
+        + '<input id="sb-bells" type="text" inputmode="numeric" placeholder="' + SETUP_BELLS.placeholder + '"'
+        + ' value="' + esc(setupAnswers.b_bells || "") + '"></div>'
       + '</div>'
       + (s.why
           ? '<p class="setup-why">' + esc(s.why.charAt(0).toUpperCase() + s.why.slice(1))
@@ -4409,7 +4505,7 @@ function renderSetup(){
 
   /* Typing a height changes what should be recommended, so the questions
      below have to redraw as you go. */
-  body.querySelectorAll("#sb-height, #sb-weight, #sb-born").forEach(function(i){
+  body.querySelectorAll("#sb-height, #sb-weight, #sb-born, #sb-bells").forEach(function(i){
     i.addEventListener("input", function(){
       const k = i.id.slice(3);
       setupAnswers["b_" + k] = i.value;
@@ -4603,11 +4699,19 @@ function renderBody(){
     + '<div class="field"><label for="b-y">Year born</label>'
       + '<input id="b-y" type="number" min="1900" max="' + TODAY.getFullYear() + '" value="' + esc(b.born || "") + '"></div>'
     + '<div class="field"><label for="b-w">Weight (kg)</label>'
-      + '<input id="b-w" type="number" min="20" max="400" step="0.1" value="' + (w ? w.kg : "") + '"></div>';
+      + '<input id="b-w" type="number" min="20" max="400" step="0.1" value="' + (w ? w.kg : "") + '"></div>'
+    + '<div class="field grow"><label for="b-bells">Kettlebells you own (kg)</label>'
+      + '<input id="b-bells" type="text" inputmode="numeric" placeholder="8, or 16 and 24"'
+      + ' value="' + esc(bellsOwned().join(", ")) + '"></div>';
 
   const age = ageNow(), bmi = bmiNow();
   note.textContent = (age ? age + " years old. " : "")
     + (bmi ? "BMI " + bmi.toFixed(1) + " \u2014 blunt, and blind to muscle. " : "")
+    + (oneBellOnly()
+        ? "One bell, so the programme progresses on reps and leverage rather than load. "
+        : bellsOwned().length > 1
+          ? "Bells: " + bellsOwned().join(", ") + " kg. "
+          : "")
     + "Height and year are asked once. Weight is kept per day so the eating panel can "
     + "show a four-week direction; log it weekly, not daily.";
 
@@ -4621,7 +4725,9 @@ function renderBody(){
     if(kg !== "" && isFinite(n) && n >= 20 && n <= 400){
       weightLog()[TODAY_K] = Math.round(n * 10) / 10;
     }
-    save(); renderAll();
+    const bells = String(document.getElementById("b-bells").value || "")
+      .split(/[^0-9.]+/).filter(Boolean).map(Number);
+    setBells(bells);   // saves and re-renders
   };
   host.querySelectorAll("input").forEach(function(i){ i.addEventListener("change", commit); });
 }
@@ -4896,13 +5002,29 @@ function renderProgramme(){
       +'<p class="prog-body">'+s.blurb+'</p></div>';
   }).join("");
   const ph = PHASES[p.i], bl = blockOf(week), loads = lastBlockLoads();
+  /* Weeks 5-6 tell you to go heavier. With one bell that is not advice, it is
+     a dead end, so the phase says what to do instead. */
+  const capped = oneBellOnly();
+  const phNote = (capped && p.i === 2)
+    ? "Extra set stays. You\u2019ve one bell, so the load can\u2019t go up \u2014 the reps do instead. "
+      + "Add two to every core movement, and take the harder version of anything that still feels easy."
+    : (capped && p.i === 3)
+      ? "Two extra sets on the core movements and rest cut to 60s. Then three easy days and start the "
+        + "block again \u2014 not heavier, since there is nothing heavier, but tighter: slower reps, "
+        + "one hand where it used to be two."
+      : ph.note;
   document.getElementById("phase-note").innerHTML =
     "<b>"+ph.weeks+" · "+ph.label+" — "
       + (bl.n > 1 ? "block "+bl.n+", week "+bl.w : "you're in week "+week)
-      + "</b><br>"+ph.note
+      + "</b><br>"+phNote
     + (bl.n > 1 && bl.w <= 2
-        ? "<br><br><b>The block has restarted.</b> Same sets as the start, and the bell goes up "
-          + "wherever the last set of the old block still felt easy."
+        ? "<br><br><b>The block has restarted.</b> "
+          + (capped
+              ? "Same sets as the start. There is no heavier bell, so the block gets harder by "
+                + "being tighter \u2014 add reps where the last set felt easy, and swap in the "
+                + "harder version of anything you have outgrown."
+              : "Same sets as the start, and the bell goes up wherever the last set of the old "
+                + "block still felt easy.")
           + (loads.length
               ? " You finished the last one on " + loads.map(function(l){
                   return esc(l.n.replace(/ \u2014.*/, "").toLowerCase()) + " " + esc(l.load);
@@ -4929,6 +5051,7 @@ function renderAll(){
   renderFaults = [];
   draw("masthead", renderMasthead); draw("clock", renderClock);
   draw("verdict", renderVerdict);   draw("rank", renderRank);
+  draw("kit", maybeAskForKit);
   draw("re-weigh", renderReweigh);
   draw("rewards", renderRewards);
   if(rewardsOpen) draw("rewards tab", renderRewardsTab);
