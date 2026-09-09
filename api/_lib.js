@@ -164,6 +164,16 @@ export function rankOf(done) {
   return { n, name };
 }
 
+/* A day can carry several bought effects, so this reads an array. Records
+   written before that change hold a bare string, and both shapes have to keep
+   working — the notification must not start nagging on a rest day because of
+   how the day was stored. */
+export function hasPass(passes, k, kind) {
+  const v = passes && passes[k];
+  if (!v) return false;
+  return Array.isArray(v) ? v.indexOf(kind) > -1 : v === kind;
+}
+
 export function buildNudge(state, todayKey) {
   if (!state) {
     return { title: "Iron Ledger", body: "No record found. Open the app and log something." };
@@ -187,7 +197,7 @@ export function buildNudge(state, todayKey) {
   for (let i = 0; i < 7; i++) {
     const k = addDays(monday, i);
     if (done[k]) weekDone++;
-    else if (passes[k] === "rest") weekRested++;
+    else if (hasPass(passes, k, "rest")) weekRested++;
   }
   /* A rest day comes off what the week asks of you; it is never counted as a
      session. weekDone stays the true number so the nudge and the app agree. */
@@ -312,7 +322,7 @@ export function buildNudge(state, todayKey) {
   /* A rest day you earned and chose is the one evening this app has nothing
      to say about training. Anything else outstanding still gets its line —
      the day off was from the session, not from the bins. */
-  if (passes[todayKey] === "rest") {
+  if (hasPass(passes, todayKey, "rest")) {
     return jobLine
       ? { title: T, body: `Rest day, earned.${jobLine}` }
       : null;

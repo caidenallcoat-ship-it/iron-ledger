@@ -60,6 +60,11 @@ explicit choice — do not soften it.
   still reports the sessions actually done ("2 of 3"), it just isn't judged
   short. `weekBar()` / `weekMet()` hold that distinction — use them for any
   pass/fail judgement and `weekTarget()` only for display.
+- Rewards are earned one per FINISHED week (`perfectWeek()` — real sessions
+  only, never rest days) and at most three are held at once. A week completed
+  with a rest day must never earn a reward, or the mechanic funds itself.
+  Everything is bought with training, whichever area it is spent on: never add
+  a second currency.
 
 ## Gotchas
 

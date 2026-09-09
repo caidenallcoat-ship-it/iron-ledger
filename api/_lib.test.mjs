@@ -103,5 +103,22 @@ ok("and says the rest day was earned rather than hiding it",
 ok("a food pass does not silence training",
   /Session [A-E]/.test(buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: "food" } }), TODAY).body));
 
+// A day can hold several bought effects. The app writes an array; records
+// written before that hold a bare string. Both must behave identically here,
+// or the phone starts nagging on a day that was paid for.
+console.log("");
+console.log("both stored shapes");
+ok("an array-shaped rest day is still a rest day",
+  buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: ["rest"] } }), TODAY) === null);
+ok("a rest day alongside other effects still counts",
+  buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: ["late", "rest", "food"] } }), TODAY) === null);
+ok("an array without a rest day does not silence training",
+  /Session [A-E]/.test(
+    buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: ["food", "late"] } }), TODAY).body));
+ok("an array-shaped rest day lowers the week the same way",
+  buildNudge(base(oneSession, { target: 2, passes: { "2026-09-07": ["rest"] } }), TODAY) === null);
+ok("an empty array is not a pass",
+  /Session [A-E]/.test(buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: [] } }), TODAY).body));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
