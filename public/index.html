@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T14:17:05.088Z";</script>
+<script>window.__BUILD__ = "2026-09-09T14:41:56.783Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -437,8 +437,17 @@
   /* weekly target */
   /* Sits flush under the figures grid, so it must not carry its own top
      border or a margin tuned to whatever the section gap happened to be. */
+  .reweigh{border:1px solid var(--line);border-left:3px solid var(--warn);
+    background:var(--surface);padding:15px 17px}
+  .reweigh h4{font-family:"Archivo",sans-serif;font-size:15.5px;font-weight:600;color:var(--ink)}
+  .reweigh p{font-size:12.5px;line-height:1.6;color:var(--muted);margin-top:7px}
+  .reweigh p b{color:var(--ink2)}
+  .reweigh .actions{margin-top:12px}
   .faults{border:1px solid var(--miss);background:var(--surface);padding:13px 16px;
     font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.6;color:var(--miss)}
+  .setup-why{margin-top:12px;padding:11px 13px;background:var(--surface2);
+    border-left:3px solid var(--warn);font-size:12.5px;line-height:1.6;color:var(--ink2)}
+  .setup-why b{color:var(--ink)}
   .field-row{display:flex;gap:10px;flex-wrap:wrap}
   .field-row .field{flex:1;min-width:104px}
   .rank{border:1px solid var(--line);background:var(--surface);padding:16px 17px}
@@ -864,6 +873,7 @@
     <section class="clock" id="clock"></section>
 
     <p class="faults" id="faults" hidden></p>
+    <div class="reweigh" id="reweigh" hidden></div>
 
     <div class="rank" id="rank"></div>
     <div class="rew" id="rew" data-on="0"></div>
@@ -1361,6 +1371,7 @@ const BLANK = {
   weight:{},        // "YYYY-MM-DD": kg, from Health or typed in
   body:{},          // {height: cm, born: yyyy} — asked once, changes rarely
   level:null,       // 0 building up | 1 getting there | 2 as written
+  driftSeen:null,   // the suggestion you've already said no to, so it stops asking
   impact:null,      // "low" | "normal" — jumping and skipping, or not
   claims:[],         // [{d, id, name, cost}] — everything ever claimed
   rewards:[],        // [{id, name, cost}] — rewards you wrote yourself
@@ -2473,6 +2484,66 @@ function areaLabel(a){
 /* The block under the rank: what you hold, and the way in. The catalogue
    itself lives in its own section — it got too big to sit here, and a list
    of things you can't afford yet is not what the training page is for. */
+/* Asked once a month, not once a week. A body worth re-measuring does not
+   change faster than that, and a scale checked more often is just noise with
+   a mood attached. */
+function renderReweigh(){
+  const host = document.getElementById("reweigh");
+  if(!host) return;
+  const drift = driftFromSuggestion();
+  const due = weighDue();
+  host.hidden = !(due || drift);
+  if(host.hidden) return;
+
+  const age = weighAge(), w = latestWeight();
+
+  if(drift){
+    const up = drift.moves.some(function(m){ return m.up; });
+    host.innerHTML =
+      '<h4>' + (up ? "The programme can move up" : "The programme should ease off") + '</h4>'
+      + '<p>'
+      /* At a healthy weight there is nothing to explain, and an empty reason
+         used to render as a full stop with nothing in front of it. */
+      + (drift.why ? esc(drift.why.charAt(0).toUpperCase() + drift.why.slice(1)) + '. '
+                   : 'Your weight has moved enough to be worth acting on. ')
+      + drift.moves.map(function(m){
+          return m.what === "level"
+            ? 'Strength would go from <b>' + esc(m.from) + '</b> to <b>' + esc(m.to) + '</b>'
+            : 'Jumping and skipping would go ' + (m.to === "normal" ? '<b>back in</b>' : '<b>out</b>');
+        }).join(", and ") + '. '
+      + 'Nothing changes unless you say so.</p>'
+      + '<div class="actions">'
+        + '<button class="btn btn-primary" type="button" id="rw-apply">Move it</button>'
+        + '<button class="btn btn-ghost" type="button" id="rw-keep">Leave it as it is</button>'
+      + '</div>';
+    document.getElementById("rw-apply").addEventListener("click", applySuggestion);
+    document.getElementById("rw-keep").addEventListener("click", function(){
+      state.level = startLevel(); state.impact = impactMode();
+      state.driftSeen = drift.level + ":" + drift.impact;
+      save(); renderAll();
+    });
+    return;
+  }
+
+  host.innerHTML =
+    '<h4>Time to weigh in</h4>'
+    + '<p>'
+    + (age === null
+        ? 'You haven\u2019t logged a weight yet. One reading is worth nothing on its own, but it is where the direction starts.'
+        : '<b>' + plural(age, "day") + '</b> since the last one'
+          + (w ? ', when you were <b>' + w.kg.toFixed(1) + ' kg</b>' : "") + '. '
+          + 'Once a month is plenty \u2014 more often and you are reading noise.')
+    + '</p>'
+    + '<div class="actions"><button class="btn btn-primary" type="button" id="rw-now">Log it</button></div>';
+  document.getElementById("rw-now").addEventListener("click", function(){
+    const cur = latestWeight();
+    const v = prompt("Weight in kg" + (cur ? " (last: " + cur.kg.toFixed(1) + ")" : "") + ":",
+      cur ? String(cur.kg) : "");
+    if(v === null) return;
+    if(!setWeight(v)) alert("That doesn\u2019t look like a weight in kilograms.");
+  });
+}
+
 function renderRewards(){
   const host = document.getElementById("rew");
   const held = passesHeld(), open = rewardsUnlocked();
@@ -3364,6 +3435,43 @@ function latestWeight(){
   const ks = Object.keys(weightLog()).sort();
   return ks.length ? { kg: Number(weightLog()[ks[ks.length-1]]), on: ks[ks.length-1] } : null;
 }
+const REWEIGH_DAYS = 28;
+/* Days since the last reading, or null if there has never been one. */
+function weighAge(){
+  const w = latestWeight();
+  return w ? daysBetween(w.on, TODAY_K) : null;
+}
+function weighDue(){
+  const age = weighAge();
+  if(age === null) return Boolean(bodyCfg().height);   // height known, weight never given
+  return age >= REWEIGH_DAYS;
+}
+/* Whether what the app would now recommend differs from what is set. A body
+   that has changed is the only honest reason to move the programme, and it
+   is offered rather than applied — the app noticing is not the same as the
+   app deciding. */
+function driftFromSuggestion(){
+  if(!bmiNow()) return null;
+  const s = suggestion();
+  /* Saying "leave it" has to actually settle it. Writing the current setting
+     back changes nothing, so the same offer returned on every render, which
+     is nagging rather than noticing. It stays quiet until the body moves
+     enough to suggest something different again. */
+  if(state.driftSeen === s.level + ":" + s.impact) return null;
+  const lv = startLevel(), im = impactMode();
+  const moves = [];
+  if(s.level !== lv) moves.push({ what:"level", from:LEVELS[lv], to:LEVELS[s.level], up:s.level > lv });
+  if(s.impact !== im) moves.push({ what:"impact", from:im, to:s.impact, up:s.impact === "normal" });
+  return moves.length ? { moves:moves, level:s.level, impact:s.impact, why:s.why } : null;
+}
+function applySuggestion(){
+  const s = suggestion();
+  state.level = s.level;
+  state.impact = s.impact;
+  state.driftSeen = null;   // taken, so there is nothing outstanding to remember
+  save(); renderAll();
+}
+
 function ageNow(){
   const born = Number(bodyCfg().born);
   if(!born || born < 1900 || born > TODAY.getFullYear()) return null;
@@ -4225,6 +4333,16 @@ function renderAllWeekly(){
 /* ---------- starter questions ----------
    Asked once. Every answer changes something real; none of it is stored and
    then ignored. */
+/* Asked before the rest, because everything after it is decided partly by the
+   answer: what the programme should hand you on the first evening depends on
+   what you are being asked to lift and land on. Skippable — a blank body just
+   means nothing is suggested, rather than something being guessed. */
+const SETUP_BODY = [
+  { k:"height", label:"Height (cm)",  min:100, max:250, step:1 },
+  { k:"weight", label:"Weight (kg)",  min:20,  max:400, step:0.1 },
+  { k:"born",   label:"Year born",    min:1900, max:2100, step:1 }
+];
+
 const SETUP_Q = [
   { id:"goal", h:"What are you actually after?",
     p:"It sets what the app leads with.",
@@ -4232,6 +4350,9 @@ const SETUP_Q = [
   { id:"level", h:"How many full push-ups can you do right now?",
     p:"Honestly, today, not on a good day. It sets where the hard movements start \u2014 the rest of the programme is the same either way.",
     opts:[["0","None yet"],["1","One to four"],["2","Five or more"]] },
+  { id:"impact", h:"Jumping and skipping \u2014 alright, or not?",
+    p:"Burpees and rope are the two things here that put real load through knees and ankles. Nothing else in the programme depends on the answer.",
+    opts:[["low","Keep it low"],["normal","I'm fine with it"]] },
   { id:"target", h:"How many sessions a week can you genuinely hold?",
     p:"Not the number you would like. People asked for six stick worst; people asked for two stick best.",
     opts:[["2","2"],["3","3"],["4","4"],["5","5"]] },
@@ -4248,6 +4369,24 @@ const SETUP_Q = [
 
 let setupAnswers = {};
 
+/* What the setup screen is currently showing as the answer: what you picked,
+   or what the app worked out from your height and weight. */
+function answeredAs(id){
+  if(setupAnswers[id] !== undefined) return setupAnswers[id];
+  if(id === "level") return String(suggestion().level);
+  if(id === "impact") return suggestion().impact;
+  return undefined;
+}
+/* Body figures are written as they are typed, so suggestion() can see them
+   while the questions below are still being answered. */
+function commitSetupBody(){
+  const h = Number(setupAnswers.b_height), y = Number(setupAnswers.b_born),
+        w = Number(setupAnswers.b_weight);
+  if(h >= 100 && h <= 250) bodyCfg().height = Math.round(h); else delete bodyCfg().height;
+  if(y >= 1900 && y <= TODAY.getFullYear()) bodyCfg().born = Math.round(y); else delete bodyCfg().born;
+  if(w >= 20 && w <= 400) weightLog()[TODAY_K] = Math.round(w * 10) / 10;
+}
+
 function renderSetup(){
   const sec = document.getElementById("s-setup");
   if(!sec) return;
@@ -4255,17 +4394,49 @@ function renderSetup(){
   if(state.onboarded) return;
 
   const body = document.getElementById("setup-body");
-  body.innerHTML = SETUP_Q.map(function(q){
+  const s = suggestion();
+  body.innerHTML =
+    '<div class="setup-q"><h4>A bit about you</h4>'
+      + '<p>So the first session is one you can actually finish. Leave it blank if you\u2019d rather not \u2014 nothing is guessed from an empty box.</p>'
+      + '<div class="field-row">'
+      + SETUP_BODY.map(function(f){
+          return '<div class="field"><label for="sb-' + f.k + '">' + f.label + '</label>'
+            + '<input id="sb-' + f.k + '" type="number" min="' + f.min + '" max="' + f.max + '"'
+            + ' step="' + f.step + '" value="' + esc(setupAnswers["b_" + f.k] || "") + '"></div>';
+        }).join("")
+      + '</div>'
+      + (s.why
+          ? '<p class="setup-why">' + esc(s.why.charAt(0).toUpperCase() + s.why.slice(1))
+            + ', so <b>' + esc(LEVELS[s.level]) + '</b> and '
+            + (s.impact === "low" ? '<b>no jumping</b>' : '<b>jumping is fine</b>')
+            + ' are already picked below. Change either if that\u2019s wrong.</p>'
+          : "")
+    + '</div>'
+    + SETUP_Q.map(function(q){
     return '<div class="setup-q"><h4>' + q.h + '</h4><p>' + q.p + '</p>'
       + '<div class="setup-opts">' + q.opts.map(function(o){
           return '<button class="setup-opt" type="button" data-q="' + q.id + '" data-v="' + o[0] + '"'
-            + ' aria-pressed="' + (setupAnswers[q.id] === o[0]) + '">' + o[1] + '</button>';
+            + ' aria-pressed="' + (answeredAs(q.id) === o[0]) + '">' + o[1] + '</button>';
         }).join("") + '</div></div>';
   }).join("")
   + '<div class="actions">'
     + '<button class="btn btn-primary" type="button" id="setup-done">Save and start</button>'
     + '<button class="btn btn-ghost" type="button" id="setup-skip">Skip, use the defaults</button>'
   + '</div>';
+
+  /* Typing a height changes what should be recommended, so the questions
+     below have to redraw as you go. */
+  body.querySelectorAll("#sb-height, #sb-weight, #sb-born").forEach(function(i){
+    i.addEventListener("input", function(){
+      const k = i.id.slice(3);
+      setupAnswers["b_" + k] = i.value;
+      commitSetupBody();
+      const at = document.activeElement === i ? i.selectionStart : null;
+      renderSetup();
+      const again = document.getElementById(i.id);
+      if(again && at !== null){ again.focus(); try{ again.setSelectionRange(at, at); }catch(e){} }
+    });
+  });
 
   body.querySelectorAll("[data-q]").forEach(function(b){
     b.addEventListener("click", function(){
@@ -4276,7 +4447,12 @@ function renderSetup(){
 
   document.getElementById("setup-done").addEventListener("click", function(){
     if(setupAnswers.goal){ state.goal = setupAnswers.goal; applyGoalFocus(); }
-    if(setupAnswers.level !== undefined) state.level = parseInt(setupAnswers.level, 10);
+    commitSetupBody();
+    /* Whatever is showing as chosen is what gets saved, suggestion included —
+       otherwise tapping straight through would leave the programme on a
+       default the app had already decided was wrong. */
+    state.level = parseInt(answeredAs("level"), 10);
+    state.impact = answeredAs("impact");
     if(setupAnswers.target) state.target = parseInt(setupAnswers.target, 10);
     if(setupAnswers.bed) areaCfg().sleep.by = parseInt(setupAnswers.bed, 10);
     if(setupAnswers.cap) areaCfg().money.cap = parseInt(setupAnswers.cap, 10);
@@ -4770,6 +4946,7 @@ function renderAll(){
   renderFaults = [];
   draw("masthead", renderMasthead); draw("clock", renderClock);
   draw("verdict", renderVerdict);   draw("rank", renderRank);
+  draw("re-weigh", renderReweigh);
   draw("rewards", renderRewards);
   if(rewardsOpen) draw("rewards tab", renderRewardsTab);
   draw("figures", renderFigs);      draw("target", renderTarget);
