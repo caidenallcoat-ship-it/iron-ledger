@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T14:09:53.821Z";</script>
+<script>window.__BUILD__ = "2026-09-09T14:12:06.973Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1563,7 +1563,7 @@ const LEVELS = ["Building up", "Getting there", "As written"];
    half an hour before you start. Which hours can fire at all is fixed by the
    cron entries at deploy time, so a slot outside that window has to be said
    out loud rather than silently never arriving. */
-const CRON_LOCAL_HOURS = [19];
+const CRON_LOCAL_HOURS = [17, 18, 19, 20];
 function nudgeHour(){
   const raw = state.slot;
   if(raw === null || raw === undefined || raw === "") return 18;

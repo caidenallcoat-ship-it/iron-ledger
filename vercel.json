@@ -26,11 +26,23 @@
   "crons": [
     {
       "path": "/api/notify",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/notify",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/notify",
       "schedule": "0 18 * * *"
     },
     {
       "path": "/api/notify",
       "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/notify",
+      "schedule": "0 20 * * *"
     }
   ]
 }

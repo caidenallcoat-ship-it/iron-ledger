@@ -1546,7 +1546,7 @@ const LEVELS = ["Building up", "Getting there", "As written"];
    half an hour before you start. Which hours can fire at all is fixed by the
    cron entries at deploy time, so a slot outside that window has to be said
    out loud rather than silently never arriving. */
-const CRON_LOCAL_HOURS = [19];
+const CRON_LOCAL_HOURS = [17, 18, 19, 20];
 function nudgeHour(){
   const raw = state.slot;
   if(raw === null || raw === undefined || raw === "") return 18;
