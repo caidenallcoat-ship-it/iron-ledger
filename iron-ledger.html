@@ -1542,6 +1542,20 @@ function setsFor(w, week){ return w.core ? w.sets + phaseFor(week).add : w.sets;
 
    Level 2 is the programme exactly as written. */
 const LEVELS = ["Building up", "Getting there", "As written"];
+/* Mirrors nudgeHourFor() in api/notify.js: the top of the hour containing
+   half an hour before you start. Which hours can fire at all is fixed by the
+   cron entries at deploy time, so a slot outside that window has to be said
+   out loud rather than silently never arriving. */
+const CRON_LOCAL_HOURS = [19];
+function nudgeHour(){
+  const raw = state.slot;
+  if(raw === null || raw === undefined || raw === "") return 18;
+  const slot = Number(raw);
+  if(!isFinite(slot) || slot < 0.5 || slot > 23.99) return 18;
+  return Math.max(0, Math.min(23, Math.floor(slot - 0.5)));
+}
+function nudgeReachable(){ return CRON_LOCAL_HOURS.indexOf(nudgeHour()) > -1; }
+
 function startLevel(){
   const l = state.level;
   return (l === 0 || l === 1 || l === 2) ? l : 1;
@@ -2720,7 +2734,8 @@ function renderKeyBlock(){
 (function wireUpdate(){
   const note = document.getElementById("build-note");
   const btn = document.getElementById("upd-btn");
-  if(note){
+  function renderBuildNote(){
+    if(!note) return;
     const b = window.__BUILD__;
     let when = "dev";
     if(b){
@@ -2730,24 +2745,73 @@ function renderKeyBlock(){
     }
     note.textContent = "Build " + when + " (your local time).";
   }
+  renderBuildNote();
+  /* Reopen settings after an update reload, because that is where you were
+     standing when you pressed it. */
+  try{
+    if(sessionStorage.getItem("il-reopen-settings")){
+      sessionStorage.removeItem("il-reopen-settings");
+      settingsOpen = true;
+      showFocusedSection();
+      const el = document.getElementById("s-settings");
+      if(el) el.scrollIntoView({block:"start"});
+    }
+  }catch(e){}
   if(!btn) return;
-  btn.addEventListener("click", async function(){
-    btn.textContent = "Checking…";
+
+  /* This used to unregister the worker, bin every cache and force a reload
+     the moment it was pressed, whether or not anything had changed — so
+     "check for updates" always meant "throw the page away", which closed
+     settings, lost your place, and briefly broke the installed app for no
+     reason at all. It asks first now, and only acts when the answer is yes. */
+  async function deployedBuild(){
+    const r = await fetch("/version.json?t=" + Date.now(), {cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return (await r.json()).build;
+  }
+  async function takeUpdate(){
     try{
       if("serviceWorker" in navigator){
         const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(function(r){ return r.update(); }));
-        /* Nuclear option: drop the worker and its caches, then reload clean.
-           This is the button for when a phone is stubbornly holding an old
-           copy, which is exactly what it was added for. */
         await Promise.all(regs.map(function(r){ return r.unregister(); }));
-        if(window.caches){
-          const keys = await caches.keys();
-          await Promise.all(keys.map(function(k){ return caches.delete(k); }));
-        }
+      }
+      if(window.caches){
+        const keys = await caches.keys();
+        await Promise.all(keys.map(function(k){ return caches.delete(k); }));
       }
     }catch(e){}
-    location.reload(true);
+    /* Come back with settings still open, since that is where you were. */
+    try{ sessionStorage.setItem("il-reopen-settings", "1"); }catch(e){}
+    location.reload();
+  }
+
+  let pending = null;
+  btn.addEventListener("click", async function(){
+    if(pending){ btn.textContent = "Updating…"; return takeUpdate(); }
+    const label = btn.textContent;
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    try{
+      const there = await deployedBuild();
+      if(there && there !== window.__BUILD__){
+        pending = there;
+        btn.disabled = false;
+        btn.textContent = "Update now";
+        if(note) note.textContent = "A newer build is ready. Nothing has changed yet.";
+        return;
+      }
+      btn.textContent = "Up to date";
+      if(note) note.textContent = "You already have the newest build. Nothing was changed.";
+    }catch(e){
+      btn.textContent = "Couldn't check";
+      if(note) note.textContent = "Couldn't reach the server to check. Nothing was changed.";
+    }
+    /* Put the button back rather than leaving it stuck on a status. */
+    setTimeout(function(){
+      btn.disabled = false;
+      btn.textContent = label;
+      if(note) renderBuildNote();
+    }, 4000);
   });
 })();
 
@@ -4607,12 +4671,19 @@ var Notify = (function(){
 
   function note(msg){
     const n = document.getElementById("notif-note");
-    if(n) n.textContent = msg || "";
+    if(!n) return;
+    /* Say when it will actually arrive, and admit it when it can't. */
+    const timing = nudgeReachable()
+      ? " It arrives at " + fmtH(nudgeHour()) + ", half an hour before you start."
+      : " \u26a0 Your slot is " + fmtH(DAY.slot) + ", so this wants to fire at "
+        + fmtH(nudgeHour()) + " \u2014 but the server is only set up to send at "
+        + CRON_LOCAL_HOURS.map(fmtH).join(" or ") + ", so nothing will arrive. Tell Claude to move it.";
+    n.textContent = (msg || "") + (msg ? timing : "");
   }
   function paint(on, label, why){
     const b = btn(); if(!b) return;
     b.hidden = false;
-    b.textContent = label || (on ? "Reminders are on" : "Turn on 6pm reminders");
+    b.textContent = label || (on ? "Reminders are on" : "Turn on " + fmtH(nudgeHour()) + " reminders");
     b.setAttribute("data-on", on ? "1" : "0");
     note(why);
   }
@@ -4633,7 +4704,7 @@ var Notify = (function(){
     paint(false, "Asking…");
     const perm = await Notification.requestPermission();
     if(perm !== "granted"){
-      paint(false, perm === "denied" ? "Reminders blocked in browser settings" : "Turn on 6pm reminders");
+      paint(false, perm === "denied" ? "Reminders blocked in browser settings" : "Turn on " + fmtH(nudgeHour()) + " reminders");
       return;
     }
     const reg = await navigator.serviceWorker.ready;

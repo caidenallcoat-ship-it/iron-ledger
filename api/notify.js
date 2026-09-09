@@ -22,6 +22,25 @@ const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY;
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:nobody@example.com";
 const TZ = process.env.NUDGE_TZ || "Europe/London";
 const HOUR = Number(process.env.NUDGE_HOUR || 18);
+
+/* The hour to nudge at, taken from the training time you set in the app: the
+   top of the hour containing half an hour before you start. 18:30 nudges at
+   18:00, 19:30 at 19:00. Reading it from the record means changing your slot
+   in the app moves the notification, instead of leaving it firing ninety
+   minutes early forever.
+
+   Which UTC hours can fire at all is fixed by the cron entries in
+   vercel.json, so a slot outside that window needs those changing too — the
+   app says so rather than going quiet. */
+export function nudgeHourFor(state) {
+  const raw = state && state.slot;
+  /* Number(null) is 0, which is a perfectly valid hour and would have sent
+     the nudge at midnight for any record that hasn't set a slot yet. */
+  if (raw === null || raw === undefined || raw === "") return HOUR;
+  const slot = Number(raw);
+  if (!Number.isFinite(slot) || slot < 0.5 || slot > 23.99) return HOUR;
+  return Math.max(0, Math.min(23, Math.floor(slot - 0.5)));
+}
 const APP_URL = process.env.APP_URL || "https://iron-ledger-cade10.vercel.app";
 
 export default async function handler(req, res) {
@@ -40,13 +59,18 @@ export default async function handler(req, res) {
   const now = localParts(TZ);
   const force = "force" in (req.query || {});
 
-  // The DST guard. A manual run can skip it.
-  if (byCron && !force && now.hour !== HOUR) {
-    return res.status(200).json({ skipped: "wrong_local_hour", localHour: now.hour, wanted: HOUR });
-  }
-
   try {
     const state = await loadState();
+    const wanted = nudgeHourFor(state);
+
+    // The DST guard, now against the hour this record actually wants. A
+    // manual run can skip it.
+    if (byCron && !force && now.hour !== wanted) {
+      return res.status(200).json({
+        skipped: "wrong_local_hour", localHour: now.hour, wanted,
+      });
+    }
+
     const nudge = buildNudge(state, now.key);
     if (!nudge) {
       return res.status(200).json({ sent: 0, reason: "nothing_worth_saying", date: now.key });
