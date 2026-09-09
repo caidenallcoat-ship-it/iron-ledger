@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T09:12:21.970Z";</script>
+<script>window.__BUILD__ = "2026-09-09T09:21:29.143Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -838,6 +838,11 @@
         <div class="eyebrow" style="margin-bottom:8px">Reminders</div>
         <button class="btn" type="button" id="notif-btn">Turn on 6pm reminders</button>
         <p class="sec-note" id="notif-note" style="margin-top:8px"></p>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">What you are after</div>
+        <div class="setup-opts" id="goal-opts"></div>
+        <p class="sec-note" id="goal-note" style="margin-top:8px"></p>
       </div>
       <div>
         <div class="eyebrow" style="margin-bottom:8px">Scheme</div>
@@ -3188,7 +3193,7 @@ function renderSetup(){
   });
 
   document.getElementById("setup-done").addEventListener("click", function(){
-    if(setupAnswers.goal) state.goal = setupAnswers.goal;
+    if(setupAnswers.goal){ state.goal = setupAnswers.goal; applyGoalFocus(); }
     if(setupAnswers.target) state.target = parseInt(setupAnswers.target, 10);
     if(setupAnswers.bed) areaCfg().sleep.by = parseInt(setupAnswers.bed, 10);
     if(setupAnswers.cap) areaCfg().money.cap = parseInt(setupAnswers.cap, 10);
@@ -3325,6 +3330,49 @@ function renderReview(){
   });
 }
 
+
+/* ---------- what you said you were after ----------
+   The setup asks this and promises it changes what the app leads with, so it
+   has to actually do that: sorting your life out opens on the House, anything
+   training-shaped opens on Training, and it breaks ties in the daily nudge. */
+const GOALS = [
+  ["strong", "Get stronger"],
+  ["lean", "Lose weight"],
+  ["order", "Sort my life out"],
+  ["consistent", "Just be consistent"]
+];
+
+function goalFocusIndex(){
+  return state.goal === "order" ? 0 : 1;   // 0 = House, 1 = Training
+}
+
+function applyGoalFocus(){
+  ringFocus = goalFocusIndex();
+  ringRot = -60 * ringFocus;
+}
+
+function renderGoal(){
+  const host = document.getElementById("goal-opts");
+  if(!host) return;
+  host.innerHTML = GOALS.map(function(g){
+    return '<button class="setup-opt" type="button" data-goal="' + g[0] + '"'
+      + ' aria-pressed="' + (state.goal === g[0]) + '">' + g[1] + '</button>';
+  }).join("");
+  host.querySelectorAll("[data-goal]").forEach(function(b){
+    b.addEventListener("click", function(){
+      state.goal = b.dataset.goal;
+      applyGoalFocus();
+      save(); renderAll();
+    });
+  });
+  const note = document.getElementById("goal-note");
+  if(note) note.textContent = state.goal === "order"
+    ? "The ring opens on the House, and the nudge leans on jobs and people."
+    : state.goal
+      ? "The ring opens on Training, and the nudge leans on the session."
+      : "Not set. The ring opens on Training.";
+}
+
 function renderGuide(){
   const host = document.getElementById("guide-list");
   host.innerHTML = Object.keys(CUES).map(function(id){
@@ -3372,6 +3420,7 @@ function renderAll(){
   if(ringCollapsed) renderStrip();
   renderCal(); renderLedger(); renderProgramme();
   renderAppearance();
+  renderGoal();
   renderKeyBlock();
   /* renderAll runs once during boot, before this module is assigned, so this
      has to tolerate its absence — otherwise it throws and takes the rest of
@@ -3397,6 +3446,7 @@ window.addEventListener("error", function(e){
 });
 
 applyAppearance();
+applyGoalFocus();
 renderGuide();
 wireAddJob();
 wireAddPerson();

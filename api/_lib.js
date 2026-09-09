@@ -184,20 +184,102 @@ export function buildNudge(state, todayKey) {
   const topReason = Object.keys(tally).sort((a, b) => tally[b] - tally[a])[0] || null;
   const topCount = topReason ? tally[topReason] : 0;
 
-  // The house.
-  let worstJob = null, overdueCount = 0;
+  /* One supporting line, chosen from everything the app tracks. It used to
+     look only at the house, so eating, sleep, money, people and the weekly
+     tasks were invisible to the only thing that reaches a phone. Each
+     candidate carries a severity so the worst one wins, and the goal set
+     during setup breaks ties. */
+  const candidates = [];
+
   if (Array.isArray(state.chores)) {
+    let worst = null, behind = 0;
     for (const c of state.chores) {
       const over = c.last ? daysBetween(c.last, todayKey) - c.every : 9999;
-      if (over > 0) overdueCount++;
-      if (!worstJob || over > worstJob.over) worstJob = { name: c.name, over, never: !c.last };
+      if (over > 0) behind++;
+      if (!worst || over > worst.over) worst = { name: c.name, over, never: !c.last };
+    }
+    if (worst && worst.over > 0) {
+      candidates.push({
+        area: "order", severity: Math.min(worst.never ? 30 : worst.over, 60),
+        line: worst.never
+          ? `${worst.name} still hasn't been done — ${behind} jobs behind.`
+          : `${worst.name} is ${plural(worst.over, "day")} past due; ${behind} behind.`,
+      });
     }
   }
-  const jobLine = worstJob && worstJob.over > 0
-    ? worstJob.never
-      ? ` ${worstJob.name} still hasn't been done — ${overdueCount} jobs behind.`
-      : ` ${worstJob.name} is ${plural(worstJob.over, "day")} past due; ${overdueCount} behind.`
-    : "";
+
+  if (Array.isArray(state.people)) {
+    let worst = null;
+    for (const p of state.people) {
+      if (!p.last) continue;                     // never logged isn't a fact about them
+      const since = daysBetween(p.last, todayKey);
+      const over = since - p.every;
+      if (over > 0 && (!worst || over > worst.over)) worst = { name: p.name, over, since };
+    }
+    if (worst) {
+      const how = worst.since >= 14
+        ? plural(Math.floor(worst.since / 7), "week")
+        : plural(worst.since, "day");
+      candidates.push({
+        area: "order", severity: Math.min(worst.over, 60),
+        line: `You haven't spoken to ${worst.name} in ${how}.`,
+      });
+    }
+  }
+
+  const cap = state.areas && state.areas.money ? Number(state.areas.money.cap) : 0;
+  if (cap > 0 && state.spend) {
+    let spent = 0;
+    for (let i = 0; i < 7; i++) spent += Number(state.spend[addDays(monday, i)]) || 0;
+    if (spent > cap) {
+      candidates.push({
+        area: "order", severity: 25 + Math.min(20, Math.round((spent - cap) / cap * 20)),
+        line: `You're £${Math.round(spent - cap)} over the week's spending cap.`,
+      });
+    }
+  }
+
+  // Eating and sleep, but only once the week is far enough along to matter.
+  const dailyCfg = state.areas || {};
+  if (state.daily && daysLeft <= 3) {
+    let ate = 0, slept = 0;
+    for (let i = 0; i < 7; i++) {
+      const m = state.daily[addDays(monday, i)] || {};
+      if (m.protein && m.nojunk) ate++;
+      if (m.bed) slept++;
+    }
+    const eatT = dailyCfg.eat ? dailyCfg.eat.target : 5;
+    const slpT = dailyCfg.sleep ? dailyCfg.sleep.target : 5;
+    if (ate < eatT) candidates.push({ area: "lean", severity: 10 + (eatT - ate) * 3,
+      line: `Eating is ${ate} of ${eatT} with ${plural(daysLeft, "day")} left.` });
+    if (slept < slpT) candidates.push({ area: "strong", severity: 10 + (slpT - slept) * 3,
+      line: `In bed on time ${slept} of ${slpT} nights — that's the bit that decides whether the training does anything.` });
+  }
+
+  // Weekly tasks, and especially ones being rewritten week after week.
+  if (state.weekly && typeof state.weekly === "object") {
+    let open = 0, worstCarried = null;
+    for (const a of Object.keys(state.weekly)) {
+      for (const t of state.weekly[a] || []) {
+        if (t.done) continue;
+        open++;
+        if (t.carried && (!worstCarried || t.carried > worstCarried.carried)) worstCarried = t;
+      }
+    }
+    if (worstCarried) {
+      candidates.push({ area: "order", severity: 20 + worstCarried.carried * 12,
+        line: `"${worstCarried.text}" has been on the list ${plural(worstCarried.carried + 1, "week")} now.` });
+    } else if (open) {
+      candidates.push({ area: "order", severity: 8,
+        line: `${plural(open, "task")} still on this week's list.` });
+    }
+  }
+
+  const goal = state.goal || null;
+  candidates.sort((a, b) =>
+    (b.severity + (b.area === goal ? 8 : 0)) - (a.severity + (a.area === goal ? 8 : 0))
+  );
+  const jobLine = candidates.length ? " " + candidates[0].line : "";
 
   const link = "";
   const T = "Iron Ledger";
