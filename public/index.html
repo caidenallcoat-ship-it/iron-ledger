@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T08:46:00.492Z";</script>
+<script>window.__BUILD__ = "2026-09-09T08:55:59.182Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -515,6 +515,28 @@
     vertical-align:middle;overflow:hidden}
   .bar-fill{display:block;height:100%;background:var(--done)}
 
+
+  /* this week's ad-hoc tasks, per area */
+  .weekly{margin-bottom:22px}
+  .wk-empty{padding:18px 22px;color:var(--muted);font-size:13.5px;line-height:1.6}
+  .wk-carried{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--miss);white-space:nowrap}
+  .wk-del{font-family:"IBM Plex Mono",monospace;font-size:14px;line-height:1;padding:6px 9px;
+    border:1px solid transparent;background:transparent;color:var(--muted)}
+  .wk-del:hover{color:var(--miss);border-color:var(--line2)}
+  .lift[aria-checked="true"] .wk-carried{opacity:.4}
+
+  /* starter questions */
+  .setup{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--warn)}
+  .setup-q{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;
+    flex-direction:column;gap:12px}
+  .setup-q h4{font-family:"Archivo",sans-serif;font-size:15.5px;font-weight:600;margin:0;color:var(--ink)}
+  .setup-q p{margin:0;font-size:13px;line-height:1.6;color:var(--muted);max-width:56ch}
+  .setup-opts{display:flex;gap:8px;flex-wrap:wrap}
+  .setup-opt{font-family:"Archivo",sans-serif;font-size:13.5px;font-weight:500;padding:9px 14px;
+    border:1px solid var(--line2);background:var(--surface);color:var(--ink)}
+  .setup-opt[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+
   /* punch card */
   .box{background:var(--surface);border:1px solid var(--line);padding:20px 22px}
   .cal-scroll{overflow-x:auto;padding-bottom:6px}
@@ -624,6 +646,14 @@
     </div>
   </header>
 
+  <section id="s-setup" class="setup" hidden>
+    <div class="ring-head">
+      <h3>Before you start</h3>
+      <span class="ring-status" data-s="ok">Five questions</span>
+    </div>
+    <div id="setup-body"></div>
+  </section>
+
   <div class="ring-strip" id="ring-strip" role="button" tabindex="0"
        aria-label="Show the ring">
     <span class="strip-dots" id="strip-dots"></span>
@@ -649,6 +679,7 @@
   </section>
 
   <section id="s-house">
+    <div class="weekly" id="wk-house"></div>
     <div class="panel">
       <div class="house-verdict" id="house-verdict"></div>
       <ul class="jobs" id="jobs"></ul>
@@ -661,6 +692,7 @@
   </section>
 
   <section id="s-train">
+    <div class="weekly" id="wk-train"></div>
     <section class="verdict" id="verdict" data-sev="warn">
       <div class="eyebrow" id="v-eyebrow">Reading the record</div>
       <p class="v-line" id="v-line">Working out what you've actually done.</p>
@@ -728,18 +760,22 @@
   </section>
 
   <section id="s-eat">
+    <div class="weekly" id="wk-eat"></div>
     <div class="panel" id="eat-panel"></div>
   </section>
 
   <section id="s-money">
+    <div class="weekly" id="wk-money"></div>
     <div class="panel" id="money-panel"></div>
   </section>
 
   <section id="s-sleep">
+    <div class="weekly" id="wk-sleep"></div>
     <div class="panel" id="sleep-panel"></div>
   </section>
 
   <section id="s-people">
+    <div class="weekly" id="wk-people"></div>
     <div class="panel">
       <div class="house-verdict" id="people-verdict"></div>
       <ul class="jobs" id="people-list"></ul>
@@ -1049,7 +1085,11 @@ const BLANK = {
   daily:{},          // "YYYY-MM-DD": {protein:bool, nojunk:bool, bed:bool}
   spend:{},          // "YYYY-MM-DD": number (pounds)
   people:null,       // [{id,name,every,last}] — same clock as the house jobs
-  areas:{ eat:{target:5}, sleep:{target:5, by:23}, money:{cap:100} }
+  areas:{ eat:{target:5}, sleep:{target:5, by:23}, money:{cap:100} },
+  /* Ad-hoc jobs that only matter this week, per area. Unfinished ones carry
+     forward with a count rather than quietly disappearing. */
+  weekly:{}, weeklyWeek:null,
+  onboarded:false, goal:null, slot:null
 };
 const LS_KEY = "iron-ledger-v2";
 let state = JSON.parse(JSON.stringify(BLANK));
@@ -2943,6 +2983,191 @@ function wireBackup(){
   });
 }
 
+
+/* ---------- this week's tasks ----------
+   The recurring mechanics cover what happens every week. This is for what
+   only matters this week: ring the dentist, get the bin bags, sort the tax
+   thing. Unfinished items carry forward and count how many times they have -
+   naming what didn't happen is the app's whole job. */
+function weeklyBucket(){
+  if(!state.weekly || typeof state.weekly !== "object") state.weekly = {};
+  const mon = key(mondayOf(TODAY));
+  if(state.weeklyWeek !== mon){
+    Object.keys(state.weekly).forEach(function(a){
+      state.weekly[a] = (state.weekly[a] || [])
+        .filter(function(t){ return !t.done; })
+        .map(function(t){ return Object.assign({}, t, {carried: (t.carried || 0) + 1}); });
+    });
+    state.weeklyWeek = mon;
+  }
+  return state.weekly;
+}
+function weeklyFor(a){
+  const b = weeklyBucket();
+  if(!Array.isArray(b[a])) b[a] = [];
+  return b[a];
+}
+function weeklyOutstanding(a){
+  return weeklyFor(a).filter(function(t){ return !t.done; }).length;
+}
+
+function renderWeekly(a){
+  const host = document.getElementById("wk-" + a);
+  if(!host) return;
+  const list = weeklyFor(a);
+  const left = list.filter(function(t){ return !t.done; }).length;
+
+  const rows = list.map(function(t){
+    return '<li><div class="lift" role="checkbox" tabindex="0" aria-checked="' + Boolean(t.done) + '" data-wk="' + esc(t.id) + '">'
+      + '<span class="tick"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8.5 6 12.5 14 3.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+      + '<span class="lift-n">' + esc(t.text) + '</span>'
+      + (t.carried ? '<span class="wk-carried">carried x' + t.carried + '</span>' : '')
+      + '<button class="wk-del" type="button" data-wkdel="' + esc(t.id) + '" aria-label="Remove">&times;</button>'
+      + '</div></li>';
+  }).join("");
+
+  host.innerHTML =
+    '<div class="panel">'
+    + '<div class="sess-top"><div><h3 class="sess-title">This week</h3>'
+      + '<p class="sess-sub">' + (list.length ? left + " of " + list.length + " left" : "nothing added") + '</p></div>'
+      + (list.length ? '<span class="chip" data-v="' + (left ? "" : "done") + '">' + (left ? left + " to do" : "all done") + '</span>' : '')
+    + '</div>'
+    + (list.length ? '<ul class="lifts">' + rows + '</ul>'
+                   : '<p class="wk-empty">Anything that only matters this week goes here. It carries over if you do not do it, and says so.</p>')
+    + '<div class="actions">'
+      + '<button class="btn" type="button" data-wkadd="' + a + '">What needs doing this week?</button>'
+    + '</div>'
+    + '<div class="job-edit" id="wkform-' + a + '" hidden></div>'
+    + '</div>';
+
+  host.querySelectorAll("[data-wk]").forEach(function(b){
+    function toggle(){
+      const t = weeklyFor(a).filter(function(x){ return x.id === b.dataset.wk; })[0];
+      if(!t) return;
+      t.done = !t.done;
+      save(); renderWeekly(a); renderRing();
+    }
+    b.addEventListener("click", function(e){ if(e.target.closest("[data-wkdel]")) return; toggle(); });
+    b.addEventListener("keydown", function(e){
+      if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggle(); }
+    });
+  });
+
+  host.querySelectorAll("[data-wkdel]").forEach(function(b){
+    b.addEventListener("click", function(e){
+      e.stopPropagation();
+      state.weekly[a] = weeklyFor(a).filter(function(x){ return x.id !== b.dataset.wkdel; });
+      save(); renderWeekly(a); renderRing();
+    });
+  });
+
+  const addBtn = host.querySelector("[data-wkadd]");
+  const form = document.getElementById("wkform-" + a);
+  addBtn.addEventListener("click", function(){
+    const open = form.hidden;
+    if(open){
+      form.innerHTML = '<div class="field grow"><label for="wkin-' + a + '">Task</label>'
+        + '<input id="wkin-' + a + '" type="text" maxlength="80" placeholder="Ring the dentist"></div>'
+        + '<button class="btn btn-primary" type="button" id="wksave-' + a + '">Add</button>'
+        + '<button class="btn btn-ghost" type="button" id="wkcancel-' + a + '">Done</button>';
+    }
+    form.hidden = !open;
+    addBtn.textContent = open ? "Close" : "What needs doing this week?";
+    if(!open) return;
+    const input = document.getElementById("wkin-" + a);
+    input.focus();
+    function add(){
+      const v = input.value.trim();
+      if(!v) return;
+      weeklyFor(a).push({id:"w-" + Date.now().toString(36), text:v, done:false});
+      save(); renderWeekly(a); renderRing();
+      /* Reopen straight away - people add three things at once, not one. */
+      const btn2 = document.querySelector('[data-wkadd="' + a + '"]');
+      if(btn2) btn2.click();
+    }
+    document.getElementById("wksave-" + a).addEventListener("click", add);
+    input.addEventListener("keydown", function(e){
+      if(e.key === "Enter"){ e.preventDefault(); add(); }
+    });
+    document.getElementById("wkcancel-" + a).addEventListener("click", function(){
+      form.hidden = true;
+      addBtn.textContent = "What needs doing this week?";
+    });
+  });
+}
+
+function renderAllWeekly(){
+  ["house","train","eat","money","sleep","people"].forEach(renderWeekly);
+}
+
+/* ---------- starter questions ----------
+   Asked once. Every answer changes something real; none of it is stored and
+   then ignored. */
+const SETUP_Q = [
+  { id:"goal", h:"What are you actually after?",
+    p:"It sets what the app leads with.",
+    opts:[["strong","Get stronger"],["lean","Lose weight"],["order","Sort my life out"],["consistent","Just be consistent"]] },
+  { id:"target", h:"How many sessions a week can you genuinely hold?",
+    p:"Not the number you would like. People asked for six stick worst; people asked for two stick best.",
+    opts:[["2","2"],["3","3"],["4","4"],["5","5"]] },
+  { id:"slot", h:"What time do you train?",
+    p:"The nag is written around your evening, so it needs to know when that is.",
+    opts:[["17.5","17:30"],["18.5","18:30"],["19.5","19:30"],["20.5","20:30"]] },
+  { id:"bed", h:"What time do you want to be in bed?",
+    p:"Sleep decides whether the training does anything.",
+    opts:[["22","22:00"],["23","23:00"],["0","Midnight"],["1","01:00"]] },
+  { id:"cap", h:"Weekly spending cap?",
+    p:"A ceiling to notice, not a budget to keep.",
+    opts:[["50","50"],["100","100"],["150","150"],["250","250"]] }
+];
+
+let setupAnswers = {};
+
+function renderSetup(){
+  const sec = document.getElementById("s-setup");
+  if(!sec) return;
+  sec.hidden = Boolean(state.onboarded);
+  if(state.onboarded) return;
+
+  const body = document.getElementById("setup-body");
+  body.innerHTML = SETUP_Q.map(function(q){
+    return '<div class="setup-q"><h4>' + q.h + '</h4><p>' + q.p + '</p>'
+      + '<div class="setup-opts">' + q.opts.map(function(o){
+          return '<button class="setup-opt" type="button" data-q="' + q.id + '" data-v="' + o[0] + '"'
+            + ' aria-pressed="' + (setupAnswers[q.id] === o[0]) + '">' + o[1] + '</button>';
+        }).join("") + '</div></div>';
+  }).join("")
+  + '<div class="actions">'
+    + '<button class="btn btn-primary" type="button" id="setup-done">Save and start</button>'
+    + '<button class="btn btn-ghost" type="button" id="setup-skip">Skip, use the defaults</button>'
+  + '</div>';
+
+  body.querySelectorAll("[data-q]").forEach(function(b){
+    b.addEventListener("click", function(){
+      setupAnswers[b.dataset.q] = b.dataset.v;
+      renderSetup();
+    });
+  });
+
+  document.getElementById("setup-done").addEventListener("click", function(){
+    if(setupAnswers.goal) state.goal = setupAnswers.goal;
+    if(setupAnswers.target) state.target = parseInt(setupAnswers.target, 10);
+    if(setupAnswers.bed) areaCfg().sleep.by = parseInt(setupAnswers.bed, 10);
+    if(setupAnswers.cap) areaCfg().money.cap = parseInt(setupAnswers.cap, 10);
+    if(setupAnswers.slot){
+      DAY.slot = parseFloat(setupAnswers.slot);
+      state.slot = DAY.slot;
+    }
+    state.onboarded = true;
+    save(); applyAppearance(); renderAll();
+    window.scrollTo({top:0, behavior:"smooth"});
+  });
+  document.getElementById("setup-skip").addEventListener("click", function(){
+    state.onboarded = true;
+    save(); renderAll();
+  });
+}
+
 function renderGuide(){
   const host = document.getElementById("guide-list");
   host.innerHTML = Object.keys(CUES).map(function(id){
@@ -2981,6 +3206,8 @@ function renderProgramme(){
 
 function renderAll(){
   renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
+  renderSetup();
+  renderAllWeekly();
   renderRing();
   renderSession(); renderEat(); renderSleep(); renderMoney(); renderHouse(); renderPeople();
   showFocusedSection();
@@ -3005,6 +3232,7 @@ document.getElementById("reset-btn").addEventListener("click", function(){
 /* ---------- boot ---------- */
 const local = loadLocal();
 if(local) state = local;
+if(state && state.slot) DAY.slot = state.slot;
 window.addEventListener("error", function(e){
   const el = document.getElementById("sync-state");
   if(el) el.textContent = "Something broke in the app: " + (e.message || "unknown") + ". Tell Claude.";
@@ -3150,6 +3378,7 @@ function adoptRemote(d){
   const theirs = (d && d.updatedAt) || 0;
   if(theirs < mine){ Store.push(); return; }   // ours is newer — send, don't take
   state = Object.assign(JSON.parse(JSON.stringify(BLANK)), d);
+  if(state.slot) DAY.slot = state.slot;   // a training time set on another device
   saveLocal();
   applyAppearance();
   renderAll();
