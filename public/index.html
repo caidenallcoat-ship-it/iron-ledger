@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T08:58:46.350Z";</script>
+<script>window.__BUILD__ = "2026-09-09T09:01:43.527Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -72,7 +72,8 @@
     padding:calc(26px + env(safe-area-inset-top)) 22px calc(80px + env(safe-area-inset-bottom));
     display:flex;flex-direction:column;gap:var(--sec-gap)}
   /* Training stacks eight blocks; without this they butt straight together. */
-  #s-train{display:flex;flex-direction:column;gap:var(--sec-gap)}
+  #s-train,#s-house,#s-eat,#s-money,#s-sleep,#s-people{
+    display:flex;flex-direction:column;gap:var(--sec-gap)}
   /* ...except the figures and the target bar, which are one object. */
   #s-train .target-bar{margin-top:calc(-1 * var(--sec-gap))}
   /* Paint the status-bar strip in the app's own colour, above the sticky nav,
@@ -525,7 +526,7 @@
 
 
   /* this week's ad-hoc tasks, per area */
-  .weekly{margin-bottom:22px}
+  .weekly{margin:0}
   .wk-empty{padding:18px 22px;color:var(--muted);font-size:13.5px;line-height:1.6}
   .wk-carried{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
     text-transform:uppercase;color:var(--miss);white-space:nowrap}
