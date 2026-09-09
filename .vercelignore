@@ -1,0 +1,4 @@
+# Everything in api/ becomes a serverless function, tests included — which
+# quietly counts against the deployment's function limit and fails the deploy
+# with nothing more useful than "Error". They are not routes; keep them home.
+api/*.test.mjs
