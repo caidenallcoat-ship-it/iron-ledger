@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T09:51:56.131Z";</script>
+<script>window.__BUILD__ = "2026-09-09T10:04:27.251Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -466,6 +466,22 @@
   /* weekly target */
   /* Sits flush under the figures grid, so it must not carry its own top
      border or a margin tuned to whatever the section gap happened to be. */
+  .faults{border:1px solid var(--miss);background:var(--surface);padding:13px 16px;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.6;color:var(--miss)}
+  .rank{border:1px solid var(--line);background:var(--surface);padding:16px 17px}
+  .rank-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  .rank-name{font-family:"Archivo Black",Arial,sans-serif;font-size:19px;
+    letter-spacing:-.01em;color:var(--ink2)}
+  .rank[data-st="holding"] .rank-name{color:var(--done)}
+  .rank[data-st="gone"] .rank-name{color:var(--miss)}
+  .rank-n{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--muted);font-variant-numeric:tabular-nums;
+    white-space:nowrap}
+  .rank-track{height:4px;background:var(--surface2);margin:12px 0 11px}
+  .rank-track i{display:block;height:100%;background:var(--ink2)}
+  .rank-note{font-size:12.5px;line-height:1.6;color:var(--muted)}
+  .rank-note b{color:var(--ink2)}
+
   .target-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
     padding:14px 17px;border:1px solid var(--line);border-top:0;background:var(--surface2)}
   .figs + .target-bar{margin-top:0}
@@ -801,6 +817,10 @@
     </section>
 
     <section class="clock" id="clock"></section>
+
+    <p class="faults" id="faults" hidden></p>
+
+    <div class="rank" id="rank"></div>
 
     <section class="figs" id="figs"></section>
     <div class="target-bar" id="target-bar"></div>
@@ -1475,6 +1495,93 @@ function drifting(){
   const gap = last ? daysBetween(last, TODAY_K) : null;
   return gap !== null && gap >= 2 && sessionsThisWeek() < weekTarget();
 }
+/* ---------- earned standing ----------
+   Not points, and never a reward. The only thing that changes is how the app
+   talks to you: early on a session buys you nothing, because it hasn’t
+   bought anything yet. Later the copy acknowledges the body of work and
+   points at what there is to lose, which is the honest version of the same
+   pressure.
+
+   Rank only ever counts up. It records work that happened, and work that
+   happened doesn’t un-happen because of a bad fortnight — taking it away
+   would make it a streak, the exact mechanic this app exists to avoid.
+   Standing is the half that moves both ways. */
+const RANKS = [
+  {at:0,  name:"Unproven"},
+  {at:4,  name:"Started"},
+  {at:12, name:"Regular"},
+  {at:24, name:"Established"},
+  {at:48, name:"Ingrained"},
+  {at:96, name:"Permanent"}
+];
+/* The short version counts as half. It keeps the week and it beats nothing,
+   but it isn’t the same work and the rank shouldn’t pretend it is. The panel
+   says so out loud — a hidden multiplier is just a slot machine. */
+function credited(){
+  let n = 0;
+  for(const k in state.done) n += state.done[k].express ? 0.5 : 1;
+  return Math.floor(n);
+}
+function rankOf(n){
+  let i = 0;
+  for(let j = 0; j < RANKS.length; j++) if(n >= RANKS[j].at) i = j;
+  return {i:i, name:RANKS[i].name, at:RANKS[i].at,
+          next:RANKS[i+1] || null, to:RANKS[i+1] ? RANKS[i+1].at - n : 0};
+}
+/* Where you are right now, as opposed to what you’ve banked. */
+function standingOf(){
+  const last = lastSession();
+  const gap = last ? daysBetween(last, TODAY_K) : null;
+  if(gap === null || gap >= 7) return "gone";
+  const c = consistency28();
+  /* Too early for a 28-day read. In the first week the only question is
+     whether you're still turning up, not what percentage you're hitting —
+     judging a part-finished first week as a slip is just wrong. */
+  if(!c) return gap <= 2 ? "holding" : "slipping";
+  if(c.pct >= 80) return "holding";
+  if(c.pct >= 50) return drifting() ? "slipping" : "holding";
+  return "gone";
+}
+/* The minute after logging is where tone lands hardest, so the full table
+   lives here and nowhere else. */
+const EARNED = {
+  Unproven:{
+    holding: "{n} logged. It doesn’t mean anything yet, and pretending otherwise is how this falls over in a fortnight.",
+    slipping:"Logged. One session after a quiet patch isn’t a recovery — it’s a session.",
+    gone:    "Logged. That’s a start, and that’s all it is."},
+  Started:{
+    holding: "{n} sessions in. Enough to show you’re serious. Not enough to call it a habit.",
+    slipping:"{n} in total, but the last month is patchy. The count isn’t the thing — the rhythm is.",
+    gone:    "First one back. The {n} before it still happened, but they don’t carry you."},
+  Regular:{
+    holding: "{n} sessions. This is starting to look like something you do rather than something you’re trying.",
+    slipping:"{n} banked and a thin month behind you. You’ve done the hard part once — don’t make yourself do it again.",
+    gone:    "{n} sessions behind you and a gap in front. The gap is the newer of the two."},
+  Established:{
+    holding: "{n} sessions. You’re keeping on track. Don’t let it slip.",
+    slipping:"{n} sessions, and the last four weeks are the worst of them. This is what losing it looks like from the inside.",
+    gone:    "{n} sessions says you can do this. The last stretch says you stopped. Both are true."},
+  Ingrained:{
+    holding: "{n} sessions. This is who you are now — not a compliment, just a fact you built.",
+    slipping:"{n} sessions and a month of drift. You’ve more to lose here than you had at the start.",
+    gone:    "{n} sessions. You don’t lose that in a fortnight. You can lose it in three months."},
+  Permanent:{
+    holding: "{n} sessions. Nothing left to prove. Keep turning up.",
+    slipping:"{n} sessions in the book and a bad month on the page. Even this doesn’t run on its own.",
+    gone:    "{n} sessions. You’ve been at this long enough to know exactly what the next fortnight decides."}
+};
+function earnedLine(){
+  /* The first one gets its own line. Every other message here compares you
+     to your own record, and on the first night there isn't one — and the
+     number that actually predicts whether you're still doing this in a year
+     is three sessions inside the first fortnight, so that's what it asks
+     for rather than anything about tonight. */
+  if(Object.keys(state.done).length <= 1)
+    return "That’s one. It proves nothing yet, and it isn’t meant to \u2014 do it again inside three days.";
+  const n = credited(), t = EARNED[rankOf(n).name];
+  return (t[standingOf()] || t.holding).split("{n}").join(n);
+}
+
 function weeksBelowTarget(){
   let n = 0, mon = mondayOf(parseKey(state.start)), thisMon = mondayOf(TODAY);
   while(mon < thisMon){
@@ -1673,13 +1780,15 @@ function verdict(){
   if(doneToday){
     const rec = state.done[TODAY_K], er = expressRate();
     const hit = wk >= tgt;
-    return {sev:"ok", eyebrow: rec.express ? "Logged — short version" : "Logged",
+    return {sev:"ok",
+      eyebrow: (rec.express ? "Logged — short version" : "Logged") + " · " + rankOf(credited()).name,
       line: hit ? SESSIONS[rec.key].name+" done. That's the week — "+wk+" of "+tgt+"."
                 : SESSIONS[rec.key].name+" done. "+wk+" of "+tgt+" this week.",
       sub: (er && er.ex >= Math.ceil(er.of*0.6))
         ? "<b>"+er.ex+" of your last "+er.of+" were the short version.</b> It counts and it keeps the week — but the full session is what changes your shape. Do the whole thing next time. "+nextDueText()+"."
-        : (hit ? "Target met. Anything else this week is a bonus, not a debt. "+nextDueText()+"."
-               : "Eat something with protein in the next hour and get to bed at a sensible time. "+nextDueText()+".")};
+        : "<b>"+earnedLine()+"</b> "
+          + (hit ? "Target met — anything else this week is a bonus, not a debt. "+nextDueText()+"."
+                 : "Eat something with protein in the next hour and get to bed at a sensible time. "+nextDueText()+".")};
   }
 
   if(total === 0 && daysIn() <= 1){
@@ -1813,6 +1922,23 @@ function renderVerdict(){
   document.getElementById("v-eyebrow").textContent = v.eyebrow.toUpperCase();
   document.getElementById("v-line").textContent = v.line;
   document.getElementById("v-sub").innerHTML = v.sub;
+}
+
+function renderRank(){
+  const host = document.getElementById("rank");
+  const n = credited(), r = rankOf(n);
+  const span = r.next ? r.next.at - r.at : 1;
+  const pct = r.next ? Math.round((n - r.at) / span * 100) : 100;
+  host.dataset.st = standingOf();
+  host.innerHTML =
+    '<div class="rank-top"><span class="rank-name">' + r.name + '</span>'
+      + '<span class="rank-n">' + plural(n, "session") + ' credited</span></div>'
+    + '<div class="rank-track"><i style="width:' + Math.max(0, Math.min(100, pct)) + '%"></i></div>'
+    + '<p class="rank-note">'
+      + (r.next ? plural(r.to, "session") + ' to <b>' + r.next.name + '</b>. '
+                : 'Top of the list, and it stays there. ')
+      + 'Rank only counts up \u2014 a bad month can\u2019t take it off you. '
+      + 'The short version counts as half.</p>';
 }
 
 function renderFigs(){
@@ -3377,7 +3503,7 @@ function renderReview(){
 
   const f = lastWeekFigures();
   document.getElementById("review-when").textContent =
-    "week of " + parseKey(f.lastMon).toLocaleDateString(undefined,{day:"numeric",month:"short"});
+    "week of " + f.lastMon.toLocaleDateString(undefined,{day:"numeric",month:"short"});
 
   const tile = function(k, v, flag){
     return '<div class="rl"' + (flag ? ' data-flag="' + flag + '"' : "") + '>'
@@ -3700,23 +3826,51 @@ function renderProgramme(){
     "<b>"+ph.weeks+" · "+ph.label+" — you're in week "+week+"</b><br>"+ph.note;
 }
 
+/* Each panel is drawn on its own. A panel that throws used to take every
+   panel after it with it — a Date passed where a date key was expected once
+   left the page with no session card at all — and a half-drawn page on a
+   training night is worse than a missing panel with a note under it. The
+   failure is still shown rather than swallowed. */
+function draw(name, fn){
+  try { fn(); }
+  catch(err){
+    renderFaults.push(name + ": " + (err && err.message ? err.message : String(err)));
+    if(window.console) console.error("render failed: " + name, err);
+  }
+}
+let renderFaults = [];
+
 function renderAll(){
-  renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
-  renderSetup();
-  renderReview();
-  renderAllWeekly();
-  renderRing();
-  renderSession(); renderEat(); renderSleep(); renderMoney(); renderHouse(); renderPeople();
-  showFocusedSection();
-  if(ringCollapsed) renderStrip();
-  renderCal(); renderLedger(); renderProgramme();
-  renderAppearance();
-  renderGoal();
-  renderKeyBlock();
+  renderFaults = [];
+  draw("masthead", renderMasthead); draw("clock", renderClock);
+  draw("verdict", renderVerdict);   draw("rank", renderRank);
+  draw("figures", renderFigs);      draw("target", renderTarget);
+  draw("setup", renderSetup);
+  draw("review", renderReview);
+  draw("weekly", renderAllWeekly);
+  draw("ring", renderRing);
+  draw("session", renderSession); draw("eating", renderEat);   draw("sleep", renderSleep);
+  draw("money", renderMoney);     draw("house", renderHouse);  draw("people", renderPeople);
+  draw("focus", showFocusedSection);
+  if(ringCollapsed) draw("strip", renderStrip);
+  draw("calendar", renderCal); draw("ledger", renderLedger); draw("programme", renderProgramme);
+  draw("appearance", renderAppearance);
+  draw("goal", renderGoal);
+  draw("key", renderKeyBlock);
   /* renderAll runs once during boot, before this module is assigned, so this
-     has to tolerate its absence — otherwise it throws and takes the rest of
-     the boot script (including the gate wiring) down with it. */
-  if(typeof Notify !== "undefined") Notify.init();
+     has to tolerate its absence. */
+  if(typeof Notify !== "undefined") draw("notifications", function(){ Notify.init(); });
+  showFaults();
+}
+
+/* Says which panel is broken rather than leaving a silent hole. */
+function showFaults(){
+  const el = document.getElementById("faults");
+  if(!el) return;
+  el.hidden = !renderFaults.length;
+  el.textContent = renderFaults.length
+    ? "Some of this page didn't draw — " + renderFaults.join("; ")
+    : "";
 }
 
 /* ---------- reset ---------- */

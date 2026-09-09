@@ -6,7 +6,8 @@
   "description": "Training and household accountability tracker",
   "scripts": {
     "build": "node build.mjs",
-    "preview": "node build.mjs && python -m http.server 8766 --directory public"
+    "preview": "node build.mjs && python -m http.server 8766 --directory public",
+    "test": "node api/_lib.test.mjs"
   },
   "dependencies": {
     "web-push": "^3.6.7"

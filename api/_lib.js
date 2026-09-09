@@ -147,6 +147,23 @@ function plural(n, w) {
  * Compose the nudge. Returns null when there is genuinely nothing to say,
  * so a quiet day stays quiet instead of manufacturing a problem.
  */
+/* Mirrors RANKS / credited() in iron-ledger.html. The notification is the
+   only part of this that reaches a phone, so it should speak with the same
+   voice as the app rather than treating a hundred sessions like none. Short
+   versions count as half, same as in the app. */
+const RANKS = [
+  [0, "Unproven"], [4, "Started"], [12, "Regular"],
+  [24, "Established"], [48, "Ingrained"], [96, "Permanent"],
+];
+export function rankOf(done) {
+  let n = 0;
+  for (const k in done) n += done[k] && done[k].express ? 0.5 : 1;
+  n = Math.floor(n);
+  let name = RANKS[0][1];
+  for (const [at, label] of RANKS) if (n >= at) name = label;
+  return { n, name };
+}
+
 export function buildNudge(state, todayKey) {
   if (!state) {
     return { title: "Iron Ledger", body: "No record found. Open the app and log something." };
@@ -318,9 +335,15 @@ export function buildNudge(state, todayKey) {
 
   // Back from a real break — no lecture, just today.
   if (gap !== null && gap >= 7) {
+    const r = rankOf(done);
+    /* Someone with a real record behind them needs reminding what's at
+       stake, not telling how to start. Someone with four sessions doesn't
+       have anything to lose yet, and saying otherwise would be flattery. */
     return {
       title: T,
-      body: `${plural(gap, "day")} off. Session ${sk} is next — take the short version, it counts. The first one back is the only hard one.`,
+      body: r.n >= 24
+        ? `${plural(gap, "day")} off, against ${r.n} sessions banked. You don't lose that in a fortnight — you lose it in three months. Session ${sk}, short version, tonight.`
+        : `${plural(gap, "day")} off. Session ${sk} is next — take the short version, it counts. The first one back is the only hard one.`,
     };
   }
 
@@ -338,8 +361,9 @@ export function buildNudge(state, todayKey) {
     };
   }
 
+  const rank = rankOf(done);
   return {
-    title: T,
+    title: rank.n >= 12 ? `${T} — ${rank.name}` : T,
     body: `${weekDone} of ${target} this week. Session ${sk} — ${session.name}, about 30 minutes.${jobLine}`,
   };
 }
