@@ -139,6 +139,38 @@ ok("a quiet evening does not lower what the week asks for", quietWeek !== null,
   JSON.stringify(quietWeek));
 
 console.log("");
+console.log("three days running");
+// Wed 9th. Trained Mon and Tue, so tonight would be the third on the trot.
+const twoRunning = {
+  "2026-09-07": { key: "A", at: "x", express: false },
+  "2026-09-08": { key: "B", at: "x", express: false },
+};
+const spaced = buildNudge(base(twoRunning, { target: 4 }), TODAY);
+ok("it says so rather than naming a session",
+  spaced && spaced.body.startsWith("2 days running."), spaced && spaced.body);
+ok("and reports the week honestly", spaced && spaced.body.includes("2 of 4"), spaced && spaced.body);
+ok("no session is pushed", spaced && !/Session [A-E]/.test(spaced.body), spaced && spaced.body);
+
+// One day running is ordinary training and must not trigger it.
+const oneRunning = { "2026-09-08": { key: "A", at: "x", express: false } };
+ok("two days back to back says nothing about spacing",
+  /Session [A-E]/.test(buildNudge(base(oneRunning, { target: 4 }), TODAY).body));
+
+// The guard that stops this being an excuse: if the week no longer fits
+// without tonight, spacing is not mentioned at all.
+const tight = buildNudge(
+  base(twoRunning, { target: 4, busy: { "2026-09-10": true, "2026-09-11": true, "2026-09-12": true, "2026-09-13": true } }),
+  TODAY);
+ok("with nowhere left to put them it pushes instead",
+  tight && !/days running/.test(tight.body), tight && tight.body);
+
+// And anything that actually matters still gets there first.
+ok("a rest day still wins over spacing",
+  buildNudge(base(twoRunning, { target: 4, passes: { [TODAY]: ["rest"] } }), TODAY) === null);
+ok("a met week still wins over spacing",
+  buildNudge(base(twoRunning, { target: 2 }), TODAY) === null);
+
+console.log("");
 console.log("day one names the right time");
 const { slotText } = await import("./_lib.js");
 ok("a 17:30 slot reads as 17:30", slotText({ slot: 17.5 }) === "17:30");

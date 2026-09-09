@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T15:05:36.770Z";</script>
+<script>window.__BUILD__ = "2026-09-09T15:18:44.049Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1229,7 +1229,7 @@ const CUES = {
 /* ---------- programme ---------- */
 
 const SESSIONS = {
-  A:{name:"Swing", tag:"Hinge & push", day:"Monday", warm:"3 min rope · 20 halos · 10 hip hinges",
+  A:{name:"Swing", tag:"Hinge & push", warm:"3 min rope · 20 halos · 10 hip hinges",
     work:[
       {n:"Two-hand swing",sets:5,d:"15",cue:"swing",core:true},
       {n:"Goblet squat",sets:4,d:"12",cue:"goblet",core:true},
@@ -1238,7 +1238,7 @@ const SESSIONS = {
       {n:"Plank on the handles",sets:3,d:"45s",cue:"plank"}],
     fin:"3 × 60s rope, fast",
     blurb:"Heavy and slow. Rest 90s between sets — you should be able to speak, not sing."},
-  B:{name:"Wind", tag:"Conditioning", day:"Tuesday", warm:"2 min easy rope · 20 halos",
+  B:{name:"Wind", tag:"Conditioning", warm:"2 min easy rope · 20 halos",
     work:[
       {n:"Rope intervals",sets:5,d:"90s hard / 45s easy",cue:"rope",core:true},
       {n:"Clean & press",sets:5,d:"6 each side",cue:"cleanpress",core:true},
@@ -1247,7 +1247,7 @@ const SESSIONS = {
       {n:"Hollow hold",sets:3,d:"30s",cue:"hollow"}],
     fin:"2 × 60s rope, all out",
     blurb:"The one that makes you fit. If you're not breathing hard by interval three, go faster."},
-  C:{name:"Pull", tag:"Back & legs", day:"Thursday", warm:"3 min rope · 10 hip hinges · 10 glute bridges",
+  C:{name:"Pull", tag:"Back & legs", warm:"3 min rope · 10 hip hinges · 10 glute bridges",
     work:[
       {n:"Single-arm row",sets:4,d:"10 each side",cue:"row",core:true},
       {n:"Romanian deadlift",sets:4,d:"12",cue:"rdl",core:true},
@@ -1256,7 +1256,7 @@ const SESSIONS = {
       {n:"Suitcase carry",sets:4,d:"40 steps each side",cue:"carry"}],
     fin:"EMOM 5 × 10 swings",
     blurb:"The carry is the point. Walk tall, ribs down, don't put the bell down mid-length."},
-  D:{name:"Press", tag:"Push volume", day:"Friday", warm:"3 min rope · 20 halos · 10 scapular push-ups",
+  D:{name:"Press", tag:"Push volume", warm:"3 min rope · 20 halos · 10 scapular push-ups",
     work:[
       {n:"Board circuit — red, blue, yellow, green",sets:4,d:"8 each colour",cue:"pushRed",core:true},
       {n:"Strict overhead press",sets:5,d:"5 each side",cue:"press",core:true},
@@ -1265,7 +1265,7 @@ const SESSIONS = {
       {n:"Hollow hold",sets:3,d:"30s",cue:"hollow"}],
     fin:"100 skips, unbroken",
     blurb:"All four colours back to back is one round. Drop to your knees rather than break form."},
-  E:{name:"Grinder", tag:"Long piece", day:"Saturday", warm:"5 min rope, building",
+  E:{name:"Grinder", tag:"Long piece", warm:"5 min rope, building",
     work:[
       {n:"Complex — clean, press, squat, swing",sets:5,d:"5 each side",cue:"complex",core:true},
       {n:"EMOM 12 min — odd 10 swings, even 8 push-ups",sets:12,d:"1 min each",cue:"swing",core:true},
@@ -2073,6 +2073,44 @@ function daysLeftThisWeek(){
    make the calendar a way of quietly writing the week off. */
 function busyLog(){ return state.busy || (state.busy = {}); }
 function busyOn(k){ return busyLog()[k] || null; }
+/* ---------- spacing ----------
+   The week is the unit, so three days running clears it exactly as well as
+   Monday, Wednesday, Friday. It is not as good for you: back-to-back sessions
+   on the same tired legs is where beginners tweak something, and it leaves a
+   four-day hole afterwards, which is where the habit goes quiet.
+
+   The app can only say so where saying so costs nothing. If the week still
+   fits without tonight, an easy day is free advice. If it does not, spacing
+   is not advice at all, it is an excuse with a reason attached, and it stays
+   quiet — which is the only thing that stops this becoming a way out. */
+function trainedOn(k){ return Boolean(state.done[k]); }
+function daysRunning(){
+  let n = 0;
+  for(let i = 1; i <= 7; i++){
+    if(trainedOn(key(addDays(TODAY, -i)))) n++; else break;
+  }
+  return n;
+}
+/* Free evenings AFTER today, so "can the week still be met if I sit tonight
+   out" is answered honestly rather than optimistically. */
+function freeEveningsAfterToday(){
+  let n = 0;
+  const mon = mondayOf(TODAY);
+  for(let i = 0; i < 7; i++){
+    const k = key(addDays(mon, i));
+    if(k > TODAY_K && !busyOn(k) && !state.done[k]) n++;
+  }
+  return n;
+}
+function easyDayEarned(){
+  if(state.done[TODAY_K]) return false;          // already trained, nothing to advise
+  /* Two days running is normal training. Three is where it is worth a word,
+     and speaking any sooner would put this on nearly every evening. */
+  if(daysRunning() < 2) return false;
+  const owed = Math.max(0, barThisWeek() - sessionsThisWeek());
+  return freeEveningsAfterToday() >= owed;       // the week survives without tonight
+}
+
 function freeEveningsLeft(){
   let n = 0;
   const mon = mondayOf(TODAY);
@@ -2364,6 +2402,20 @@ function verdict(){
   }
 
   /* Never-miss-twice, restated for a queue. */
+  /* Below everything that matters more — a finished week, a rest day, a
+     long break — and above everything that pushes you. Spacing is only
+     worth saying on an evening that would otherwise be an ordinary nag. */
+  if(easyDayEarned()){
+    const run = daysRunning();
+    return {sev:"ok", eyebrow: plural(run, "day") + " on the trot",
+      line: "That's " + plural(run, "day") + " running. Tonight can be an easy one.",
+      sub:"You're <b>"+wk+" of "+tgt+"</b> and the week still fits without it \u2014 "
+        +"<b>"+plural(free - 1, "free evening")+"</b> left after tonight for <b>"
+        +plural(Math.max(0, bar - wk), "session")+"</b>. "
+        +"Three days running on the same legs is where people tweak something, and it leaves a hole at the other end of the week. ”".slice(0,-1)
+        +"Train if you want to \u2014 it counts, and nothing is marked against you either way. Next up is <b>"+SESSIONS[sk].name+"</b>."};
+  }
+
   if(drifting()){
     return {sev:"bad", eyebrow:plural(gap,"day")+" quiet",
       line:"Two days without training, and you're short on the week.",

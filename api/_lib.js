@@ -470,6 +470,31 @@ export function buildNudge(state, todayKey) {
     };
   }
 
+  /* Last thing considered, and only ever in place of the ordinary nag. A rest
+     day, a booked evening, a met week, a drift or a week at risk all get there
+     first — so this can never be the message on an evening that mattered. */
+  const rankNow = rankOf(done);
+  let backToBack = 0;
+  for (let i = 1; i <= 7; i++) { if (done[addDays(todayKey, -i)]) backToBack++; else break; }
+  /* Two days running is normal training, not a problem. Three is where it is
+     worth saying something, and speaking any sooner would have made this the
+     message on almost every evening. */
+  if (backToBack >= 2) {
+    let freeAfter = 0;
+    for (let i = 0; i < 7; i++) {
+      const k = addDays(monday, i);
+      if (k > todayKey && !busy[k] && !done[k]) freeAfter++;
+    }
+    if (freeAfter >= Math.max(0, bar - weekDone)) {
+      return {
+        title: rankNow.n >= 12 ? `${T} — ${rankNow.name}` : T,
+        body: `${plural(backToBack, "day")} running. ` +
+          `${weekDone} of ${target}, and the week fits without tonight. Train or don't — ` +
+          `nothing is marked either way.${jobLine}`,
+      };
+    }
+  }
+
   const rank = rankOf(done);
   return {
     title: rank.n >= 12 ? `${T} — ${rank.name}` : T,
