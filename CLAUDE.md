@@ -76,7 +76,7 @@ explicit choice — do not soften it.
   Never convert them to a streak mechanic.
 - Rank counts work done, and it CAN fall — but only after sustained absence.
   One empty week costs nothing; from the second consecutive empty week it
-  erodes at DECAY_PER_WEEK, and the first session back clears the penalty
+  erodes at twice your weekly target, and the first session back clears the penalty
   outright. The rule that matters is that a single miss must never cost
   anything: a streak resets to zero on one bad day and that is the mechanic
   this app exists to avoid. Slow erosion is not that, and a rank that only

@@ -1834,8 +1834,13 @@ function rawCredited(){
    followed it, and the first session back clears the penalty entirely. That
    matches the one thing this app has always said: the first session back is
    the only hard one. */
-const DECAY_FREE_WEEKS = 1;      // the first empty week is free
-const DECAY_PER_WEEK = 2;        // then this much off the count, per week
+const DECAY_FREE_WEEKS = 1;      // the first empty week is free, because life
+/* Then every week away costs two weeks of the training you set yourself. Flat
+   two sessions a week was nothing against a count of thirty — a fortnight off
+   has to actually take something, or the rank is decoration. At three a week:
+   a fortnight costs six, a month costs eighteen, and six weeks away puts you
+   back to nothing. Steep on purpose, and undone entirely by turning up once. */
+function decayPerWeek(){ return weekTarget() * 2; }
 
 /* Consecutive whole weeks with nothing logged, counting back from the week
    before this one. This week is never counted — it isn't over yet. */
@@ -1851,7 +1856,7 @@ function emptyWeeksNow(){
 }
 function decayNow(){
   if(doneInWeek(mondayOf(TODAY)) > 0) return 0;    // trained this week: nothing owed
-  return Math.max(0, emptyWeeksNow() - DECAY_FREE_WEEKS) * DECAY_PER_WEEK;
+  return Math.max(0, emptyWeeksNow() - DECAY_FREE_WEEKS) * decayPerWeek();
 }
 function credited(){ return Math.max(0, rawCredited() - decayNow()); }
 function rankOf(n){
