@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T09:25:22.802Z";</script>
+<script>window.__BUILD__ = "2026-09-09T09:27:11.142Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3554,9 +3554,8 @@ var SMode = (function(){
   };
 })();
 
-function wireSessionMode(){
-  const start = document.getElementById("sm-start");
-  if(start) start.addEventListener("click", function(){ SMode.open(); });
+/* Wired once at boot: these live in static markup. */
+function wireSMOverlay(){
   const q = document.getElementById("sm-quit");
   if(q) q.addEventListener("click", function(){
     if(confirm("Stop the session? What you've ticked is kept.")) SMode.close();
@@ -3567,6 +3566,13 @@ function wireSessionMode(){
   if(nx) nx.addEventListener("click", function(){ SMode.next(); });
   const pv = document.getElementById("sm-prev");
   if(pv) pv.addEventListener("click", function(){ SMode.prev(); });
+}
+
+/* The start button sits inside the session card, which is re-rendered, so
+   this one does belong per render. */
+function wireSessionMode(){
+  const start = document.getElementById("sm-start");
+  if(start) start.addEventListener("click", function(){ SMode.open(); });
 }
 
 function renderGuide(){
@@ -3646,6 +3652,7 @@ applyGoalFocus();
 renderGuide();
 wireAddJob();
 wireAddPerson();
+wireSMOverlay();
 wireRing();
 wireRingCollapse();
 wireBackup();
