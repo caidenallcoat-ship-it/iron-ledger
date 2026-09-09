@@ -123,17 +123,17 @@ export async function loadState() {
 /* the programme                                                        */
 /* ------------------------------------------------------------------ */
 
-const SESSIONS = {
+export const SESSIONS = {
   A: { name: "Swing", day: 1 },
   B: { name: "Wind", day: 2 },
   C: { name: "Pull", day: 4 },
   D: { name: "Press", day: 5 },
   E: { name: "Grinder", day: 6 },
 };
-const CYCLE = ["A", "B", "C", "D", "E"];
+export const CYCLE = ["A", "B", "C", "D", "E"];
 
 /** Next in the cycle after the last one actually completed. */
-function nextSessionKey(done) {
+export function nextSessionKey(done) {
   const days = Object.keys(done).sort();
   for (let i = days.length - 1; i >= 0; i--) {
     const k = done[days[i]] && done[days[i]].key;

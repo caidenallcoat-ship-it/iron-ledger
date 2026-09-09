@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T12:11:30.463Z";</script>
+<script>window.__BUILD__ = "2026-09-09T13:06:35.281Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1320,6 +1320,7 @@ const BLANK = {
      in from a calendar. It never excuses the week; it only changes when the
      app starts warning, and what it says on the night itself. */
   busy:{},
+  weight:{},        // "YYYY-MM-DD": kg, pushed in from Health
   claims:[],         // [{d, id, name, cost}] — everything ever claimed
   rewards:[],        // [{id, name, cost}] — rewards you wrote yourself
   onboarded:false, goal:null, slot:null
@@ -3117,6 +3118,30 @@ function wireMarks(host){
   });
 }
 
+/* ---------- weight ----------
+   Only ever shown as a direction over four weeks. A daily figure on a scale
+   is noise — water, salt, what you ate on Sunday — and watching it move is
+   a well-known way to talk yourself out of something that is working. The
+   goal here is "lean", and until now nothing in the app measured whether any
+   of it was doing anything at all. */
+function weightLog(){ return state.weight || (state.weight = {}); }
+function weightTrend(){
+  const ks = Object.keys(weightLog()).sort();
+  if(ks.length < 2) return null;
+  const cut = key(addDays(TODAY, -28));
+  const recent = ks.filter(function(k){ return k >= cut; });
+  if(recent.length < 2) return null;
+  /* Mean of the first and last week in the window, so one heavy Monday
+     doesn't become a trend. */
+  const half = Math.max(1, Math.floor(recent.length / 3));
+  const mean = function(list){
+    return list.reduce(function(a,k){ return a + Number(weightLog()[k]); }, 0) / list.length;
+  };
+  const first = mean(recent.slice(0, half)), last = mean(recent.slice(-half));
+  return { from: first, to: last, delta: Math.round((last - first) * 10) / 10,
+           days: daysBetween(recent[0], recent[recent.length-1]) + 1, n: recent.length };
+}
+
 function renderEat(){
   const host = document.getElementById("eat-panel");
   if(!host) return;
@@ -3129,7 +3154,19 @@ function renderEat(){
       + dayRow("protein", "Protein at every meal", "", Boolean(m.protein))
       + dayRow("nojunk", "Nothing you would rather not admit to", "", Boolean(m.nojunk))
     + '</ul>'
-    + '<div class="strip"><b>Rule</b><span>Both marks, or the day does not count.</span></div>';
+    + '<div class="strip"><b>Rule</b><span>Both marks, or the day does not count.</span></div>'
+    + (function(){
+        const tr = weightTrend();
+        if(!tr) return "";
+        const dir = tr.delta < -0.2 ? "down" : tr.delta > 0.2 ? "up" : "level";
+        return '<div class="strip"><b>Weight</b><span>'
+          + (dir === "level"
+              ? "Level over " + plural(tr.days, "day") + ". "
+              : Math.abs(tr.delta).toFixed(1) + " kg " + dir + " over " + plural(tr.days, "day") + ". ")
+          + esc(tr.to.toFixed(1)) + " kg now, from " + esc(tr.from.toFixed(1)) + ". "
+          + "A direction, not a verdict \u2014 one weigh-in means nothing."
+          + '</span></div>';
+      })();
   wireMarks(host);
 }
 

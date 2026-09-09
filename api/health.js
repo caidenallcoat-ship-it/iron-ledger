@@ -90,8 +90,29 @@ export default async function handler(req, res) {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ? body.date : today;
     if (date > today) return res.status(400).json({ error: "date_in_the_future" });
 
+    /* Weight is accepted now that something reads it: the eating panel shows
+       a four-week direction. It is stored per day and never shown as a daily
+       number. */
+    const kg = Number(body.weight !== undefined ? body.weight : (body.kg !== undefined ? body.kg : NaN));
+    let weightSet = null;
+    if (Number.isFinite(kg)) {
+      if (kg < 20 || kg > 400) {
+        return res.status(400).json({ error: "implausible_weight", got: kg });
+      }
+      if (!state.weight || typeof state.weight !== "object") state.weight = {};
+      weightSet = Math.round(kg * 10) / 10;
+      state.weight[date] = weightSet;
+    }
+
     const sleep = body.sleep || (body.asleepAt || body.hours ? body : null);
-    if (!sleep) return res.status(400).json({ error: "no_sleep_data" });
+    if (!sleep && weightSet === null) {
+      return res.status(400).json({ error: "nothing_to_record" });
+    }
+    if (!sleep) {
+      state.updatedAt = Date.now();
+      await redis(["SET", STATE_DOC, JSON.stringify(state)]);
+      return res.status(200).json({ ok: true, date, weight: weightSet });
+    }
 
     const by = Number(
       state.areas && state.areas.sleep && state.areas.sleep.by
@@ -122,6 +143,7 @@ export default async function handler(req, res) {
       target: by,
       onTime,
       hours: day.slept !== undefined ? day.slept : null,
+      weight: weightSet,
     });
   } catch (err) {
     return res.status(502).json({ error: "health_failed", detail: String(err.message || err) });

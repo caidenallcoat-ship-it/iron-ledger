@@ -219,3 +219,82 @@ The reverse direction, and worth doing: **Add New Event**, 30 minutes at your
 training time, on the days you intend to train. Deciding when in advance is
 the single best-evidenced trick for actually doing it, and an evening already
 blocked out is one nobody else can book.
+
+## Logging the session itself
+
+Until now everything here could *read* training and nothing could record it,
+which meant the one thing the app is about was the one thing an automation
+couldn't touch.
+
+```
+POST   https://iron-ledger-cade10.vercel.app/api/session
+Header: x-ledger-key: <your key>
+Body:   {}                                  -> logs today
+        {"express": true}                   -> the short version
+        {"note": "24kg felt heavy"}         -> with a note
+        {"date": "2026-09-08"}              -> backfill a day you forgot
+
+DELETE  same URL                            -> unlog it
+GET     same URL                            -> what's next, without logging it
+```
+
+You cannot tell it *which* session to log. The programme is a rotating queue,
+so which one comes next is a fact about the record, not something an
+automation gets to assert. Logging the same day twice is refused with a 409
+rather than silently overwriting — an automation firing twice is a mistake,
+not two sessions.
+
+### Shortcut 8 — "Hey Siri, log my session"
+
+**Get Contents of URL** → POST to `/api/session`, key header, empty JSON body
+→ **Get Dictionary Value** for `thisWeek` → **Show Result**. Name it *"Log my
+session"*. Siri answers with how many you've done this week.
+
+### Shortcut 9 — let the Watch do it
+
+The proper version. Apple Watch → **Personal Automation** → *Workout* → *When
+I finish* a **Functional Strength Training** workout → run the POST above.
+Finish the session, end the workout on your wrist, and the ledger already
+knows before you've put the bell down.
+
+Pair it with Shortcut 5 and the two directions close a loop: your kettlebell
+work shows up in Fitness, and finishing it marks the week here.
+
+## Weight
+
+Accepted now that something reads it — the eating panel shows a **four-week
+direction**, never a daily number.
+
+```
+POST /api/health   {"weight": 84.2}
+```
+
+**Find Health Samples** → *Weight*, latest 1 → POST it. Weekly is plenty;
+daily is noise, and watching a scale move day to day is a well-known way of
+talking yourself out of something that is working.
+
+The panel reads: *"2.2 kg down over 28 days. 83.9 kg now, from 86.1. A
+direction, not a verdict — one weigh-in means nothing."* With fewer than two
+readings in the window it says nothing at all.
+
+## A home-screen widget
+
+Shortcuts can't draw one, but **Scriptable** (free, App Store) can, and
+`/api/session` and `/api/plan` return everything a widget needs. A small
+script fetching both gives you *"2 of 3 · 3 free evenings · Session C next"*
+on your home screen without opening anything.
+
+## What is still manual, and what could stop being
+
+**Spending.** It is the only thing left that you have to type in by hand.
+Monzo and Starling both have real APIs with transaction webhooks — a proper
+live integration rather than a Shortcut, where the ledger would learn about
+a purchase as it happens. It needs OAuth and a stored token, so it is a
+genuine piece of work rather than a recipe, and it only makes sense if you
+bank with one of them. Worth asking for if you do.
+
+**Google Calendar and Gmail** have web APIs too, so the calendar side could
+be live rather than a 7am Shortcut. Same trade: OAuth, a token to keep, and
+a third party with standing access to your data. The Shortcut runs when you
+say so and can be read in full, which for one person's training log is the
+better bargain.
