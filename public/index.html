@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T08:55:59.182Z";</script>
+<script>window.__BUILD__ = "2026-09-09T08:58:46.350Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -67,9 +67,14 @@
   body{background:var(--ground);color:var(--ink);margin:0;
     font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.62;
     -webkit-font-smoothing:antialiased}
+  :root{--sec-gap:32px}
   .wrap{max-width:920px;margin:0 auto;
     padding:calc(26px + env(safe-area-inset-top)) 22px calc(80px + env(safe-area-inset-bottom));
-    display:flex;flex-direction:column;gap:32px}
+    display:flex;flex-direction:column;gap:var(--sec-gap)}
+  /* Training stacks eight blocks; without this they butt straight together. */
+  #s-train{display:flex;flex-direction:column;gap:var(--sec-gap)}
+  /* ...except the figures and the target bar, which are one object. */
+  #s-train .target-bar{margin-top:calc(-1 * var(--sec-gap))}
   /* Paint the status-bar strip in the app's own colour, above the sticky nav,
      so nothing scrolls up underneath the clock and the battery. */
   body::before{content:"";position:fixed;top:0;left:0;right:0;
@@ -237,7 +242,7 @@
 
   /* figures */
   .figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;
-    background:var(--line);border:1px solid var(--line)}
+    background:var(--line);border:1px solid var(--line);border-bottom:0}
   .fig{background:var(--surface);padding:17px 17px 16px;display:flex;flex-direction:column;gap:5px}
   .fig .n{font-family:"Archivo Black",Arial,sans-serif;font-size:28px;line-height:1.05;
     font-variant-numeric:tabular-nums;letter-spacing:-.02em}
@@ -458,8 +463,11 @@
   .gate-err{color:var(--miss);font-size:13.5px;font-weight:500}
 
   /* weekly target */
-  .target-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:-14px;
-    padding:11px 15px;border:1px solid var(--line);border-top:0;background:var(--surface2)}
+  /* Sits flush under the figures grid, so it must not carry its own top
+     border or a margin tuned to whatever the section gap happened to be. */
+  .target-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:14px 17px;border:1px solid var(--line);border-top:0;background:var(--surface2)}
+  .figs + .target-bar{margin-top:0}
   .target-bar .lab{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.11em;
     text-transform:uppercase;color:var(--muted)}
   .target-bar .val{font-family:"Archivo Black",Arial,sans-serif;font-size:17px;
@@ -551,7 +559,7 @@
   .cell[data-s="untrained"]{background:transparent;border:1px solid var(--line2)}
   .cell[data-s="due"]{background:var(--warn)}
   .cell[data-s="sched"]{background:transparent;border:1.5px dashed var(--line2)}
-  .cell[data-s="none"]{background:transparent}
+  .cell[data-s="none"]{background:var(--surface2);opacity:.35}
   .cell[data-click="1"]{cursor:pointer}
   .cell[data-click="1"]:hover{outline:2px solid var(--ink);outline-offset:1px}
   .legend{display:flex;gap:15px;flex-wrap:wrap;margin-top:14px;font-family:"IBM Plex Mono",monospace;
@@ -615,7 +623,8 @@
   @media (max-width:560px){
     .cue-row{grid-template-columns:1fr;gap:2px}
     .clock{grid-template-columns:repeat(2,1fr)}
-    .wrap{padding:calc(16px + env(safe-area-inset-top)) 16px calc(72px + env(safe-area-inset-bottom));gap:26px}
+    :root{--sec-gap:26px}
+    .wrap{padding:calc(16px + env(safe-area-inset-top)) 16px calc(72px + env(safe-area-inset-bottom))}
     .verdict{padding:22px 18px}
     .sess-top,.strip,.actions,.excuse,.note-bar,.cue,.house-verdict,.ring-head,.ring-note{
       padding-left:18px;padding-right:18px}
@@ -1666,7 +1675,6 @@ function renderFigs(){
     {k:"Week streak",     v:streak, u:streak===1?"week":"weeks", f:streak>=2?"good":null},
     {k:"Days since",     v:gap===null?"—":gap, u:gap===null?"never trained":"days", f:(gap!==null&&gap>=4)?"bad":null},
     {k:"Weeks short",    v:weeksBelowTarget(), u:"of target", f:weeksBelowTarget()>0?"bad":null},
-    {k:"Next up",        v:nextSessionKey(), u:SESSIONS[nextSessionKey()].name.toLowerCase()},
     {k:"Jobs behind",    v:choresOverdue().length, u:"of "+choreList().length,
       f:choresOverdue().length > 0 ? "bad" : "good"}
   ];
