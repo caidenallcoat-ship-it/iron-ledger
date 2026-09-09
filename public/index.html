@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T14:12:06.973Z";</script>
+<script>window.__BUILD__ = "2026-09-09T14:17:05.088Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -439,6 +439,8 @@
      border or a margin tuned to whatever the section gap happened to be. */
   .faults{border:1px solid var(--miss);background:var(--surface);padding:13px 16px;
     font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.6;color:var(--miss)}
+  .field-row{display:flex;gap:10px;flex-wrap:wrap}
+  .field-row .field{flex:1;min-width:104px}
   .rank{border:1px solid var(--line);background:var(--surface);padding:16px 17px}
   .rank-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
   .rank-name{font-family:"Archivo Black",Arial,sans-serif;font-size:19px;
@@ -966,9 +968,19 @@
         <p class="sec-note" id="notif-note" style="margin-top:8px"></p>
       </div>
       <div>
+        <div class="eyebrow" style="margin-bottom:8px">You</div>
+        <div class="field-row" id="body-fields"></div>
+        <p class="sec-note" id="body-note" style="margin-top:8px"></p>
+      </div>
+      <div>
         <div class="eyebrow" style="margin-bottom:8px">Where you're starting</div>
         <div class="setup-opts" id="level-opts"></div>
         <p class="sec-note" id="level-note" style="margin-top:8px"></p>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Jumping and skipping</div>
+        <div class="setup-opts" id="impact-opts"></div>
+        <p class="sec-note" id="impact-note" style="margin-top:8px"></p>
       </div>
       <div>
         <div class="eyebrow" style="margin-bottom:8px">What you are after</div>
@@ -1346,8 +1358,10 @@ const BLANK = {
      in from a calendar. It never excuses the week; it only changes when the
      app starts warning, and what it says on the night itself. */
   busy:{},
-  weight:{},        // "YYYY-MM-DD": kg, pushed in from Health
+  weight:{},        // "YYYY-MM-DD": kg, from Health or typed in
+  body:{},          // {height: cm, born: yyyy} — asked once, changes rarely
   level:null,       // 0 building up | 1 getting there | 2 as written
+  impact:null,      // "low" | "normal" — jumping and skipping, or not
   claims:[],         // [{d, id, name, cost}] — everything ever claimed
   rewards:[],        // [{id, name, cost}] — rewards you wrote yourself
   onboarded:false, goal:null, slot:null
@@ -1573,10 +1587,58 @@ function nudgeHour(){
 }
 function nudgeReachable(){ return CRON_LOCAL_HOURS.indexOf(nudgeHour()) > -1; }
 
+/* Strength and impact are not the same question and were being answered by
+   one dial. How hard a push-up is depends on what you can press; whether
+   skipping and burpees are a good idea depends on what your knees and ankles
+   are being asked to absorb on every landing. A strong heavy person can press
+   plenty and still have no business doing four rounds of jump-landings in
+   week one, and someone light and older is the other way about. */
+function suggestion(){
+  const bmi = bmiNow(), age = ageNow();
+  const why = [];
+  let level = 1, impact = "normal";
+  if(bmi !== null && bmi >= 30){
+    level = 0; impact = "low";
+    why.push("at " + bmi.toFixed(1) + " BMI every press and every landing is carrying more");
+  } else if(bmi !== null && bmi >= 27){
+    impact = "low";
+    why.push("BMI " + bmi.toFixed(1) + " makes landings the thing to be careful with, not the pressing");
+  }
+  if(age !== null && age >= 50){
+    impact = "low";
+    why.push("past fifty the jumping is the first thing worth dropping and the last worth adding back");
+  }
+  return { level:level, impact:impact, why:why.join("; ") };
+}
 function startLevel(){
   const l = state.level;
-  return (l === 0 || l === 1 || l === 2) ? l : 1;
+  if(l === 0 || l === 1 || l === 2) return l;
+  return suggestion().level;
 }
+function impactMode(){
+  return state.impact === "low" || state.impact === "normal"
+    ? state.impact : suggestion().impact;
+}
+function lowImpact(){ return impactMode() === "low"; }
+
+/* Rope is in every warm-up and four of the five finishers, so a low-impact
+   setting that only touched the main work would be a lie. */
+const LOW_WARM = {
+  A:"3 min marching · 20 halos · 10 hip hinges",
+  B:"2 min brisk walking · 20 halos",
+  C:"3 min marching · 10 hip hinges · 10 glute bridges",
+  D:"3 min marching · 20 halos · 10 scapular push-ups",
+  E:"5 min brisk walking, building"
+};
+const LOW_FIN = {
+  A:"3 × 60s marching, knees high",
+  B:"2 × 60s marching, all out",
+  C:"EMOM 5 × 10 swings",
+  D:"200 fast steps on the spot",
+  E:"3 × 60s marching"
+};
+function warmFor(sk){ return lowImpact() ? (LOW_WARM[sk] || SESSIONS[sk].warm) : SESSIONS[sk].warm; }
+function finFor(sk){ return lowImpact() ? (LOW_FIN[sk] || SESSIONS[sk].fin) : SESSIONS[sk].fin; }
 /* Easier form first. An entry replaces the name, dose, cue and sets. */
 const REGRESS = {
   "Push-up board — red (chest)": [
@@ -1591,12 +1653,7 @@ const REGRESS = {
   "Board circuit — red, blue, yellow, green": [
     {n:"Stair push-ups — 4 hand positions", d:"5 each", sets:3, cue:"pushIncline"},
     {n:"Knee push-ups — 4 hand positions", d:"6 each", sets:3, cue:"pushKnees"}],
-  "Burpees": [
-    {n:"Step-back, stand up", d:"8", sets:3, cue:"stepBack"},
-    {n:"Step-back burpee, no jump", d:"8", sets:3, cue:"stepBack"}],
-  "Rope intervals": [
-    {n:"March on the spot, 60s rope at the end", d:"90s", sets:4, cue:"march"},
-    {n:"Rope intervals — 45s on, 60s walking", d:"45s / 60s", sets:4, cue:"rope"}],
+  /* Burpees and rope are handled by IMPACT, not by this table. */
   "EMOM 12 min — odd 10 swings, even 8 push-ups": [
     {n:"EMOM 8 min — odd 8 swings, even 5 knee push-ups", d:"1 min each", sets:8, cue:"swing"},
     {n:"EMOM 10 min — odd 10 swings, even 5 push-ups", d:"1 min each", sets:10, cue:"swing"}],
@@ -1615,7 +1672,15 @@ const REGRESS = {
 };
 /* The item as you should actually do it tonight. Keeps a link back to the
    written version, because the tick grid indexes against that. */
+/* Landing-heavy work, replaced whenever impact is set low, at any strength. */
+const IMPACT_SWAP = {
+  "Burpees": {n:"Step-back, stand up", d:"8", sets:3, cue:"stepBack"},
+  "Rope intervals": {n:"March on the spot, 60s rope at the end", d:"90s", sets:4, cue:"march"}
+};
 function atLevel(w){
+  if(lowImpact() && IMPACT_SWAP[w.n]){
+    return Object.assign({}, w, IMPACT_SWAP[w.n], { base:w, eased:true });
+  }
   const lv = startLevel();
   if(lv >= 2) return w;
   const r = REGRESS[w.n];
@@ -2928,13 +2993,14 @@ function renderSession(){
       +'<p class="sess-sub">'+s.tag+' · ~'+mins+' min</p></div>'
       +'<span class="chip" data-v="'+(done?"done":"due")+'">'
       +(done ? "Complete" : expressMode ? "Short version" : "Due "+(isWorkday(TODAY)?fmtH(DAY.slot):fmtH(DAY.weekendSlot)))+'</span></div>'
-    +'<div class="strip"><b>Warm-up</b><span>'+(expressMode ? "2 min rope, straight in" : s.warm)+'</span></div>'
+    +'<div class="strip"><b>Warm-up</b><span>'
+      +(expressMode ? (lowImpact() ? "2 min marching, straight in" : "2 min rope, straight in") : warmFor(sk))+'</span></div>'
     +(function(){
         const ln = lastNoteFor(sk);
         return ln ? '<div class="note-shown">LAST TIME ('+esc(parseKey(ln.date).toLocaleDateString(undefined,{day:"numeric",month:"short"}))+') — '+esc(ln.note)+'</div>' : "";
       })()
     +'<ul class="lifts">'+rows+'</ul>'
-    +'<div class="strip"><b>Finisher</b><span>'+(expressMode ? "Skipped — that's the deal with the short version." : s.fin)+'</span></div>'
+    +'<div class="strip"><b>Finisher</b><span>'+(expressMode ? "Skipped — that's the deal with the short version." : finFor(sk))+'</span></div>'
     +(!done && (lateish || expressMode)
       ? '<div class="express-bar">'+(expressMode
           ? '<span class="express-note">SHORT VERSION</span><strong>Core movements only, half the sets, no finisher — about '+exMins+' minutes.</strong> It counts and it keeps the streak. Marked on the grid so you can see how often you take it. '
@@ -3286,6 +3352,33 @@ function wireMarks(host){
    goal here is "lean", and until now nothing in the app measured whether any
    of it was doing anything at all. */
 function weightLog(){ return state.weight || (state.weight = {}); }
+function bodyCfg(){ return state.body || (state.body = {}); }
+function setWeight(kg, k){
+  const n = Number(kg);
+  if(!isFinite(n) || n < 20 || n > 400) return false;
+  weightLog()[k || TODAY_K] = Math.round(n * 10) / 10;
+  save(); renderAll();
+  return true;
+}
+function latestWeight(){
+  const ks = Object.keys(weightLog()).sort();
+  return ks.length ? { kg: Number(weightLog()[ks[ks.length-1]]), on: ks[ks.length-1] } : null;
+}
+function ageNow(){
+  const born = Number(bodyCfg().born);
+  if(!born || born < 1900 || born > TODAY.getFullYear()) return null;
+  return TODAY.getFullYear() - born;
+}
+/* BMI is a blunt instrument — it cannot tell muscle from anything else, and
+   it will read badly for people who are in good shape. It is here because it
+   is the one number that puts a weight in context at all, and it is labelled
+   for what it is rather than dressed up as a verdict. */
+function bmiNow(){
+  const h = Number(bodyCfg().height), w = latestWeight();
+  if(!h || h < 100 || h > 250 || !w) return null;
+  const m = h / 100;
+  return Math.round((w.kg / (m * m)) * 10) / 10;
+}
 function weightTrend(){
   const ks = Object.keys(weightLog()).sort();
   if(ks.length < 2) return null;
@@ -3316,19 +3409,37 @@ function renderEat(){
       + dayRow("nojunk", "Nothing you would rather not admit to", "", Boolean(m.nojunk))
     + '</ul>'
     + '<div class="strip"><b>Rule</b><span>Both marks, or the day does not count.</span></div>'
+    /* One strip, not two: the current figure, the direction it is going, and
+       a way to add today's. Two blocks both headed "Weight" was just clutter. */
     + (function(){
-        const tr = weightTrend();
-        if(!tr) return "";
-        const dir = tr.delta < -0.2 ? "down" : tr.delta > 0.2 ? "up" : "level";
+        const w = latestWeight(), bmi = bmiNow(), tr = weightTrend();
+        const bits = [];
+        if(tr){
+          const dir = tr.delta < -0.2 ? "down" : tr.delta > 0.2 ? "up" : "level";
+          bits.push('<b>' + (dir === "level"
+            ? "Level over " + plural(tr.days, "day")
+            : Math.abs(tr.delta).toFixed(1) + " kg " + dir + " over " + plural(tr.days, "day")) + '</b>');
+        }
+        if(w) bits.push(w.kg.toFixed(1) + " kg on "
+          + esc(parseKey(w.on).toLocaleDateString(undefined,{day:"numeric",month:"short"})));
+        if(bmi) bits.push("BMI " + bmi.toFixed(1));
         return '<div class="strip"><b>Weight</b><span>'
-          + (dir === "level"
-              ? "Level over " + plural(tr.days, "day") + ". "
-              : Math.abs(tr.delta).toFixed(1) + " kg " + dir + " over " + plural(tr.days, "day") + ". ")
-          + esc(tr.to.toFixed(1)) + " kg now, from " + esc(tr.from.toFixed(1)) + ". "
-          + "A direction, not a verdict \u2014 one weigh-in means nothing."
+          + (bits.length ? bits.join(" \u00b7 ") + ". " : "Nothing logged yet. ")
+          + (tr ? "A direction, not a verdict \u2014 one weigh-in means nothing. " : "")
+          + (bmi ? "BMI is blunt and blind to muscle. " : "")
+          + '<button class="link-btn" type="button" id="w-log">'
+          + (w ? "Log today" : "Log your weight") + '</button>'
           + '</span></div>';
       })();
   wireMarks(host);
+  const wl = document.getElementById("w-log");
+  if(wl) wl.addEventListener("click", function(){
+    const cur = latestWeight();
+    const v = prompt("Weight in kg" + (cur ? " (last: " + cur.kg.toFixed(1) + ")" : "") + ":",
+      cur ? String(cur.kg) : "");
+    if(v === null) return;
+    if(!setWeight(v)) alert("That doesn\u2019t look like a weight in kilograms.");
+  });
 }
 
 function renderSleep(){
@@ -4323,6 +4434,58 @@ function applyGoalFocus(){
   ringRot = -60 * ringFocus;
 }
 
+function renderBody(){
+  const host = document.getElementById("body-fields"), note = document.getElementById("body-note");
+  if(!host) return;
+  const b = bodyCfg(), w = latestWeight();
+  host.innerHTML =
+    '<div class="field"><label for="b-h">Height (cm)</label>'
+      + '<input id="b-h" type="number" min="100" max="250" value="' + esc(b.height || "") + '"></div>'
+    + '<div class="field"><label for="b-y">Year born</label>'
+      + '<input id="b-y" type="number" min="1900" max="' + TODAY.getFullYear() + '" value="' + esc(b.born || "") + '"></div>'
+    + '<div class="field"><label for="b-w">Weight (kg)</label>'
+      + '<input id="b-w" type="number" min="20" max="400" step="0.1" value="' + (w ? w.kg : "") + '"></div>';
+
+  const age = ageNow(), bmi = bmiNow();
+  note.textContent = (age ? age + " years old. " : "")
+    + (bmi ? "BMI " + bmi.toFixed(1) + " \u2014 blunt, and blind to muscle. " : "")
+    + "Height and year are asked once. Weight is kept per day so the eating panel can "
+    + "show a four-week direction; log it weekly, not daily.";
+
+  const commit = function(){
+    const h = Number(document.getElementById("b-h").value);
+    const y = Number(document.getElementById("b-y").value);
+    const kg = document.getElementById("b-w").value;
+    if(h >= 100 && h <= 250) bodyCfg().height = Math.round(h); else delete bodyCfg().height;
+    if(y >= 1900 && y <= TODAY.getFullYear()) bodyCfg().born = Math.round(y); else delete bodyCfg().born;
+    const n = Number(kg);
+    if(kg !== "" && isFinite(n) && n >= 20 && n <= 400){
+      weightLog()[TODAY_K] = Math.round(n * 10) / 10;
+    }
+    save(); renderAll();
+  };
+  host.querySelectorAll("input").forEach(function(i){ i.addEventListener("change", commit); });
+}
+
+function renderImpactPicker(){
+  const host = document.getElementById("impact-opts"), note = document.getElementById("impact-note");
+  if(!host) return;
+  const cur = impactMode(), chosen = state.impact === "low" || state.impact === "normal";
+  const opts = [["low","Keep it low"],["normal","I'm fine jumping"]];
+  host.innerHTML = opts.map(function(o){
+    return '<button class="setup-opt" type="button" data-im="' + o[0] + '" aria-pressed="'
+      + (o[0] === cur) + '">' + o[1] + '</button>';
+  }).join("");
+  const s = suggestion();
+  note.textContent = (cur === "low"
+      ? "Burpees become step-backs, rope intervals become marching, and the rope comes out of the warm-ups and finishers. Everything else is unchanged. "
+      : "Burpees, rope intervals and skipping warm-ups as written. ")
+    + (!chosen && s.why ? "Chosen for you because " + s.why + " \u2014 change it if that's wrong." : "");
+  host.querySelectorAll("[data-im]").forEach(function(b){
+    b.addEventListener("click", function(){ state.impact = b.dataset.im; save(); renderAll(); });
+  });
+}
+
 function renderLevelPicker(){
   const host = document.getElementById("level-opts"), note = document.getElementById("level-note");
   if(!host) return;
@@ -4332,10 +4495,13 @@ function renderLevelPicker(){
       + (i === lv) + '">' + esc(name) + '</button>';
   }).join("");
   const eased = Object.keys(REGRESS).length;
-  note.textContent = lv >= 2
-    ? "Every movement exactly as the programme writes it."
+  const chosen = state.level === 0 || state.level === 1 || state.level === 2;
+  const s = suggestion();
+  note.textContent = (lv >= 2
+    ? "Every movement exactly as the programme writes it. "
     : "The " + eased + " hardest movements are swapped for a form you can actually finish. "
-      + "Swings, squats, rows and carries are untouched \u2014 they were never the problem.";
+      + "Swings, squats, rows and carries are untouched \u2014 they were never the problem. ")
+    + (!chosen && s.why ? "Set for you because " + s.why + " \u2014 change it if that's wrong." : "");
   host.querySelectorAll("[data-lv]").forEach(function(b){
     b.addEventListener("click", function(){
       state.level = Number(b.dataset.lv);
@@ -4617,7 +4783,9 @@ function renderAll(){
   if(ringCollapsed) draw("strip", renderStrip);
   draw("calendar", renderCal); draw("ledger", renderLedger); draw("programme", renderProgramme);
   draw("appearance", renderAppearance);
+  draw("you", renderBody);
   draw("level", renderLevelPicker);
+  draw("impact", renderImpactPicker);
   draw("goal", renderGoal);
   draw("key", renderKeyBlock);
   /* renderAll runs once during boot, before this module is assigned, so this
