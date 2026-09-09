@@ -54,6 +54,12 @@ explicit choice — do not soften it.
   on this; `DAY` at the top of the script holds it.
 - Chores are a clock, not a streak: report days-since against an interval.
   Never convert them to a streak mechanic.
+- Rank counts work done and only ever goes up. Never make it fall — that turns
+  it into a streak, which is the mechanic this app exists to avoid.
+- An earned rest day lowers the bar; it never fills the number in. The week
+  still reports the sessions actually done ("2 of 3"), it just isn't judged
+  short. `weekBar()` / `weekMet()` hold that distinction — use them for any
+  pass/fail judgement and `weekTarget()` only for display.
 
 ## Gotchas
 
@@ -64,3 +70,6 @@ explicit choice — do not soften it.
   records migrate forward. Keep that check when changing the shape.
 - Changing the state shape breaks the `iron-ledger-nudge` scheduled task, which
   reads `tracker/state` directly. Update its prompt in the same change.
+- `npm test` covers `buildNudge` in `api/_lib.js` — the notification is the only
+  part that reaches a phone, and it duplicates the app's week and rank rules.
+  Change either side and run it; add a case rather than loosening one.

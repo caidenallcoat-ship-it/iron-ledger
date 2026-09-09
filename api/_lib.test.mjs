@@ -80,13 +80,26 @@ ok("a rest day never mentions a session",
 // Target 2, one real session on Tuesday, and Monday covered by a rest day:
 // that is a met week, so there is nothing to say.
 const oneSession = { "2026-09-08": { key: "A", at: "x", express: false } };
-ok("a rest day counts toward the week",
+ok("a rest day lowers what the week asks for",
   buildNudge(base(oneSession, { target: 2, passes: { "2026-09-07": "rest" } }), TODAY) === null,
   JSON.stringify(buildNudge(base(oneSession, { target: 2, passes: { "2026-09-07": "rest" } }), TODAY)));
 ok("without it the same week is still short",
   buildNudge(base(oneSession, { target: 2 }), TODAY) !== null);
-ok("a rest day on a day you trained is not counted twice",
+ok("a rest day on a day you trained buys nothing",
   buildNudge(base(oneSession, { target: 2, passes: { "2026-09-08": "rest" } }), TODAY) !== null);
+
+// The count itself must stay truthful: the rest day comes off the bar, it is
+// never added to the sessions.
+const metWithRest = buildNudge(
+  base(oneSession, {
+    target: 2,
+    passes: { "2026-09-07": "rest" },
+    chores: [{ id: "b", name: "Bins", every: 7, last: "2026-08-01" }],
+  }), TODAY);
+ok("a met week still reports the real session count",
+  metWithRest && metWithRest.body.includes("1 of 2"), metWithRest && metWithRest.body);
+ok("and says the rest day was earned rather than hiding it",
+  metWithRest && metWithRest.body.includes("1 rest day earned"), metWithRest && metWithRest.body);
 ok("a food pass does not silence training",
   /Session [A-E]/.test(buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: "food" } }), TODAY).body));
 

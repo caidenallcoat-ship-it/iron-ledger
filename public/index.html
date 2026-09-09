@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T10:26:34.373Z";</script>
+<script>window.__BUILD__ = "2026-09-09T10:33:05.942Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1488,27 +1488,29 @@ function minutesFor(sk, week, express){
    costs nothing; a bad week costs one. */
 function weekStreak(){
   let n = 0, mon = mondayOf(TODAY);
-  if(doneInWeek(mon) >= weekTarget()){ n++; }
+  if(weekMet(mon)){ n++; }
   mon = addDays(mon, -7);
   const floor = mondayOf(parseKey(state.start));
   while(mon >= floor){
-    if(doneInWeek(mon) >= weekTarget()) n++; else break;
+    if(weekMet(mon)) n++; else break;
     mon = addDays(mon, -7);
   }
   return n;
 }
 function lastSession(){ const ks = Object.keys(state.done).sort(); return ks.length ? ks[ks.length-1] : null; }
 function mondayOf(d){ return addDays(d, -((d.getDay()+6)%7)); }
-function sessionsThisWeek(){ return creditedInWeek(mondayOf(TODAY)); }
-function trainedThisWeek(){ return doneInWeek(mondayOf(TODAY)); }
+function sessionsThisWeek(){ return doneInWeek(mondayOf(TODAY)); }
 function doneInWeek(mon){
   let n=0; for(let i=0;i<7;i++) if(state.done[key(addDays(mon,i))]) n++;
   return n;
 }
-/* The week as the target sees it: sessions plus any rest days you'd earned
-   and chose to spend. Kept separate from doneInWeek so the calendar and the
-   ledger still report what actually happened. */
-function creditedInWeek(mon){ return doneInWeek(mon) + restDaysInWeek(mon); }
+/* A rest day lowers the bar rather than counting as a session. The week still
+   reads what you actually did — two of three stays two of three — it just
+   isn't held against you. Filling the number in would be the app lying to you
+   about training you didn't do, which is the one thing it must never do. */
+function weekBar(mon){ return Math.max(1, weekTarget() - restDaysInWeek(mon)); }
+function weekMet(mon){ return doneInWeek(mon) >= weekBar(mon); }
+function barThisWeek(){ return weekBar(mondayOf(TODAY)); }
 
 /* The week is the unit of success, not the day. Adherence research is blunt
    about this: people asked for six sessions a week stick worst, people asked
@@ -1527,13 +1529,14 @@ function consistency28(){
   const from = back > floor ? back : floor;
   const days = daysBetween(key(from), TODAY_K) + 1;
   if(days < 7) return null;
-  const expected = Math.max(1, Math.round((days/7) * weekTarget()));
-  let did = 0, d = from;
+  let did = 0, rested = 0, d = from;
   while(key(d) <= TODAY_K){
     const k = key(d);
-    if(state.done[k] || passLog()[k] === "rest") did++;
+    if(state.done[k]) did++;
+    else if(passLog()[k] === "rest") rested++;
     d = addDays(d,1);
   }
+  const expected = Math.max(1, Math.round((days/7) * weekTarget()) - rested);
   return {pct: Math.min(100, Math.round(did/expected*100)), did:did, expected:expected};
 }
 
@@ -1548,7 +1551,7 @@ function drifting(){
   for(let i=0;i<gap;i++){
     if(passLog()[key(addDays(TODAY, -i))] === "rest") return false;
   }
-  return sessionsThisWeek() < weekTarget();
+  return sessionsThisWeek() < barThisWeek();
 }
 /* ---------- earned standing ----------
    Not points, and never a reward. The only thing that changes is how the app
@@ -1636,8 +1639,10 @@ const EARNED = {
    - Today only, never backdated. Deciding to rest is a decision; applying a
      rest day to a Tuesday you already missed is editing the past, and the
      ledger is the one thing here that has to stay honest.
-   - It protects your standing, never your rank. Rank counts work done, and a
-     day off isn't work. */
+   - It takes the day off the bar rather than filling it in. Two of three
+     stays two of three; the week isn't judged short and nothing is marked
+     against you. Crediting a session you didn't do would be the app lying
+     to you, which is the one thing it must never do. */
 const PASS_FROM = 12;    // Regular
 const PASS_EVERY = 6;    // one more per six sessions after that
 const PASS_HOLD = 3;
@@ -1697,7 +1702,7 @@ function earnedLine(){
 function weeksBelowTarget(){
   let n = 0, mon = mondayOf(parseKey(state.start)), thisMon = mondayOf(TODAY);
   while(mon < thisMon){
-    if(doneInWeek(mon) < weekTarget()) n++;
+    if(!weekMet(mon)) n++;
     mon = addDays(mon, 7);
   }
   return n;
@@ -1887,11 +1892,14 @@ function verdict(){
   const exMins = minutesFor(sk, week, true);
 
   const tgt = weekTarget(), wk = sessionsThisWeek(), left = daysLeftThisWeek();
-  const done = wk >= tgt;
+  /* What the week is judged against once earned rest days are taken off it.
+     `tgt` is still what gets shown — the count stays honest. */
+  const bar = barThisWeek(), rested = restDaysInWeek(mondayOf(TODAY));
+  const done = wk >= bar;
 
   if(doneToday){
     const rec = state.done[TODAY_K], er = expressRate();
-    const hit = wk >= tgt;
+    const hit = wk >= bar;
     return {sev:"ok",
       eyebrow: (rec.express ? "Logged — short version" : "Logged") + " · " + rankOf(credited()).name,
       line: hit ? SESSIONS[rec.key].name+" done. That's the week — "+wk+" of "+tgt+"."
@@ -1901,6 +1909,15 @@ function verdict(){
         : "<b>"+earnedLine()+"</b> "
           + (hit ? "Target met — anything else this week is a bonus, not a debt. "+nextDueText()+"."
                  : "Eat something with protein in the next hour and get to bed at a sensible time. "+nextDueText()+".")};
+  }
+
+  const restToday = passOn(TODAY_K) === "rest";
+  if(restToday){
+    return {sev:"ok", eyebrow:"Rest day, earned",
+      line:"Nothing owed tonight.",
+      sub:"You're <b>"+wk+" of "+tgt+"</b> this week and that's what it stays — a rest day doesn't fill the number in, it just comes off what's asked of you. "
+        +"Nothing is marked against you and the streak is untouched. "
+        +"Eat properly, get to bed, and it's <b>"+SESSIONS[sk].name+"</b> next time."};
   }
 
   if(total === 0 && daysIn() <= 1){
@@ -1913,7 +1930,8 @@ function verdict(){
      you to ignore this panel. */
   if(done){
     return {sev:"ok", eyebrow:"Week complete",
-      line:"That's the week — "+wk+" of "+tgt+".",
+      line:"That's the week — "+wk+" of "+tgt
+        + (rested ? ", with "+plural(rested,"rest day")+" you'd earned." : "."),
       sub:"Anything else is a bonus, not a debt. Rest, eat properly, sleep. When you next train it's <b>"+nextDueText(true)+"</b>."};
   }
 
@@ -1936,10 +1954,11 @@ function verdict(){
   }
 
   /* Behind on the week with the days running out. */
-  if(left <= (tgt - wk)){
+  if(left <= (bar - wk)){
     return {sev:"bad", eyebrow:"Week at risk",
       line: wk+" of "+tgt+" done, "+plural(left,"day")+" left.",
-      sub:"Every remaining day is compulsory now — there's no slack left in the week. Next up is <b>"+s.name+", "+mins+" minutes</b>."};
+      sub:(rested ? "That's after "+plural(rested,"rest day")+" you'd earned, which is already off the total. " : "")
+        +"Every remaining day counts now — there's no slack left in the week. Next up is <b>"+s.name+", "+mins+" minutes</b>."};
   }
 
   const weekLine = wk > 0 ? " You're <b>"+wk+" of "+tgt+"</b> this week." : " Nothing logged this week yet.";
@@ -2065,7 +2084,7 @@ function renderRewards(){
         + '<span class="rew-held">Locked</span></div>'
       + '<p class="rew-note">Opens at <b>Regular</b> \u2014 ' + plural(PASS_FROM - n, "session")
         + ' away. From there you earn a day off every ' + PASS_EVERY + ' sessions: a rest day that '
-        + 'still counts toward your week, or a meal that doesn\u2019t count against your eating. '
+        + 'nothing negative comes of, or a meal that doesn\u2019t count against your eating. '
         + 'Nothing before then, because there\u2019s nothing to protect yet.</p>';
     return;
   }
@@ -2079,7 +2098,7 @@ function renderRewards(){
         + '<span class="rew-held">' + held_s + '</span></div>'
       + '<p class="rew-note">'
         + (taken === "rest"
-            ? 'Today is a <b>rest day</b>. It counts toward your week and it won\u2019t mark your record \u2014 but it isn\u2019t a session, so it doesn\u2019t move your rank.'
+            ? 'Today is a <b>rest day</b>. Your week still reads what you actually did \u2014 this only comes off what was asked of you. Nothing is marked against you, and nothing is credited to you either.'
             : 'Today is a <b>free meal day</b>. Eating doesn\u2019t count against you. Still log it; still in moderation.')
         + '</p>'
       + '<div class="rew-acts"><button class="rew-taken" type="button" id="rew-undo">Changed my mind</button></div>';
@@ -2093,7 +2112,7 @@ function renderRewards(){
       + '<span class="rew-held">' + held_s + '</span></div>'
     + '<p class="rew-note">'
       + (held
-          ? 'Spend one on <b>today</b> only \u2014 a day off you decide on is rest, one you apply to last Tuesday is just editing the record. Neither kind touches your rank: rank counts work done, and a day off isn\u2019t work.'
+          ? 'Spend one on <b>today</b> only \u2014 a day off you decide on is rest, one you apply to last Tuesday is just editing the record. Neither fills a number in: the week still says what you did, it just isn\u2019t held against you.'
           : 'None held. The next lands in <b>' + plural(nextIn, "session") + '</b>.')
       + (held && nextIn ? ' Next in ' + plural(nextIn, "session") + '.' : "")
       + (held >= PASS_HOLD ? ' You\u2019re holding the maximum \u2014 anything earned now is wasted until you spend one.' : "")
@@ -2115,7 +2134,11 @@ function renderFigs(){
   const total = Object.keys(state.done).length;
   const wk = sessionsThisWeek(), c = consistency28();
   const items = [
-    {k:"This week",      v:wk+"/"+weekTarget(), u:"target", f:wk>=weekTarget()?"good":null},
+    /* Shown against the real target; flagged against the earned one, so a
+       rest day never paints the week red. */
+    {k:"This week",      v:wk+"/"+weekTarget(),
+      u: restDaysInWeek(mondayOf(TODAY)) ? "target, "+restDaysInWeek(mondayOf(TODAY))+" rested" : "target",
+      f: weekMet(mondayOf(TODAY)) ? "good" : null},
     {k:"Last 28 days",   v:c ? c.pct+"%" : "—", u:c ? c.did+" of "+c.expected : "too early to say",
       f:c ? (c.pct>=80?"good":(c.pct<50?"bad":null)) : null},
     {k:"Week streak",     v:streak, u:streak===1?"week":"weeks", f:streak>=2?"good":null},
@@ -2628,17 +2651,19 @@ function renderCal(){
         +' title="'+esc(label)+'" aria-label="'+esc(label)+'"></button>';
     }
     /* Eighth row: did the week itself clear the target? */
-    const mon = addDays(first, w*7), n = creditedInWeek(mon), tgt = weekTarget();
+    const mon = addDays(first, w*7), n = doneInWeek(mon), tgt = weekTarget();
+    const rest = restDaysInWeek(mon);
     const future = key(mon) > TODAY_K;
     const current = key(mon) <= TODAY_K && key(addDays(mon,6)) >= TODAY_K;
     const before = key(addDays(mon,6)) < state.start;
     let ws;
     if(future || before) ws = "none";
-    else if(n >= tgt) ws = "hit";
+    else if(weekMet(mon)) ws = "hit";
     else if(current) ws = "open";
     else ws = "short";
     html += '<span class="wkbar" data-s="'+ws+'" title="'+esc("Week of "
-      + mon.toLocaleDateString(undefined,{day:"numeric",month:"short"}) + " — " + n + " of " + tgt)+'"></span>';
+      + mon.toLocaleDateString(undefined,{day:"numeric",month:"short"}) + " — " + n + " of " + tgt
+      + (rest ? ", " + plural(rest, "rest day") + " earned" : ""))+'"></span>';
   }
   cal.innerHTML = html;
   cal.querySelectorAll('[data-click="1"]').forEach(function(c){
@@ -3065,10 +3090,11 @@ const AREAS = [
     icon:"M4 7v6M16 7v6M7 5v10M13 5v10M7 10h6",
     read:function(){
       const t = weekTarget(), w = sessionsThisWeek(), left = daysLeftThisWeek();
-      const pct = Math.min(100, Math.round(w / Math.max(1,t) * 100));
-      const risk = w < t && left <= (t - w);
-      return { pct:pct, state: w >= t ? "clear" : (risk ? "behind" : "ok"),
-        status: w + "/" + t + (w >= t ? " done" : ""),
+      const bar = barThisWeek();
+      const pct = Math.min(100, Math.round(w / Math.max(1,bar) * 100));
+      const risk = w < bar && left <= (bar - w);
+      return { pct:pct, state: w >= bar ? "clear" : (risk ? "behind" : "ok"),
+        status: w + "/" + t + (w >= bar ? " done" : ""),
         note: w >= t ? "Week cleared - " + w + " of " + t + ". Next up is " + nextDueText(true) + "."
           : risk ? w + " of " + t + " with " + plural(left,"day") + " left. Every one counts now."
           : w + " of " + t + " this week. Next up is " + nextDueText(true) + "." };

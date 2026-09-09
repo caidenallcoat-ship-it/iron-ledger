@@ -183,11 +183,15 @@ export function buildNudge(state, todayKey) {
 
   // This week, Monday-start.
   const monday = addDays(todayKey, -((dow + 6) % 7));
-  let weekDone = 0;
+  let weekDone = 0, weekRested = 0;
   for (let i = 0; i < 7; i++) {
     const k = addDays(monday, i);
-    if (done[k] || passes[k] === "rest") weekDone++;
+    if (done[k]) weekDone++;
+    else if (passes[k] === "rest") weekRested++;
   }
+  /* A rest day comes off what the week asks of you; it is never counted as a
+     session. weekDone stays the true number so the nudge and the app agree. */
+  const bar = Math.max(1, target - weekRested);
   // Every remaining day is a possible training day now.
   let daysLeft = 0;
   for (let i = 0; i < 7; i++) if (addDays(monday, i) >= todayKey) daysLeft++;
@@ -197,7 +201,7 @@ export function buildNudge(state, todayKey) {
   const gap = last ? daysBetween(last, todayKey) : null;
 
   // Never-miss-twice for a queue: quiet for two days while short on the week.
-  const drifting = gap !== null && gap >= 2 && weekDone < target;
+  const drifting = gap !== null && gap >= 2 && weekDone < bar;
 
   // Excuses.
   const tally = {};
@@ -315,9 +319,12 @@ export function buildNudge(state, todayKey) {
   }
 
   // Week already met — nothing is owed.
-  if (weekDone >= target) {
+  if (weekDone >= bar) {
     if (!jobLine) return null;
-    return { title: T, body: `Week's done — ${weekDone} of ${target}.${jobLine}` };
+    return {
+      title: T,
+      body: `Week's done — ${weekDone} of ${target}${weekRested ? `, ${plural(weekRested, "rest day")} earned` : ""}.${jobLine}`,
+    };
   }
 
   // Day one.
@@ -367,7 +374,7 @@ export function buildNudge(state, todayKey) {
     };
   }
 
-  if (daysLeft <= target - weekDone) {
+  if (daysLeft <= bar - weekDone) {
     return {
       title: T,
       body: `${weekDone} of ${target}, ${plural(daysLeft, "day")} left. Every one counts now. Session ${sk} — ${session.name}.`,
