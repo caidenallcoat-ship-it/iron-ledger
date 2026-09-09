@@ -15,12 +15,8 @@
  *
  * Same LEDGER_KEY as everything else, same lockout on repeated bad keys.
  */
-import {
-  redis, sameSecret, storeConfigured, loadState, localParts,
-  isLockedOut, noteFailure, clearFailures, STATE_DOC, hasPass,
-} from "./_lib.js";
+import { redis, authorise, loadState, localParts, STATE_DOC, hasPass } from "./_lib.js";
 
-const LEDGER_KEY = process.env.LEDGER_KEY;
 
 /** "23:12", "2026-09-08T23:12:00Z" or 23.2 -> hours past midnight, or null. */
 export function bedHour(v) {
@@ -58,14 +54,8 @@ export function inBedOnTime(hour, by) {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
-  if (!storeConfigured()) return res.status(503).json({ error: "storage_not_configured" });
-  if (!LEDGER_KEY) return res.status(503).json({ error: "key_not_configured" });
-  if (await isLockedOut(req)) return res.status(429).json({ error: "too_many_attempts" });
-  if (!sameSecret(req.headers["x-ledger-key"], LEDGER_KEY)) {
-    await noteFailure(req);
-    return res.status(401).json({ error: "bad_key" });
-  }
-  await clearFailures(req);
+  const auth = await authorise(req);
+  if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   try {
     const state = await loadState();

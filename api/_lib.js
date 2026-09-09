@@ -79,6 +79,40 @@ export function sameSecret(a, b) {
   return diff === 0;
 }
 
+/**
+ * One gate for every endpoint.
+ *
+ * The lockout deliberately guards only WRONG keys. It used to run before the
+ * key was checked at all, so ten bad attempts from an address locked out the
+ * person holding the right key for fifteen minutes — and on a home
+ * connection, or behind any shared NAT or office line, that is the same
+ * address. Guessing is still stopped dead at ten tries; being right is no
+ * longer punished for someone else's mistakes.
+ */
+export async function authorise(req) {
+  if (!storeConfigured()) {
+    return { ok: false, status: 503, body: {
+      error: "storage_not_configured",
+      message: "No Redis store is connected. Add the Upstash for Redis integration in the Vercel dashboard and redeploy.",
+    } };
+  }
+  if (!process.env.LEDGER_KEY) {
+    return { ok: false, status: 503, body: {
+      error: "key_not_configured",
+      message: "Set the LEDGER_KEY environment variable in Vercel and redeploy.",
+    } };
+  }
+  if (sameSecret(req.headers["x-ledger-key"], process.env.LEDGER_KEY)) {
+    await clearFailures(req);
+    return { ok: true };
+  }
+  if (await isLockedOut(req)) {
+    return { ok: false, status: 429, body: { error: "too_many_attempts" } };
+  }
+  await noteFailure(req);
+  return { ok: false, status: 401, body: { error: "bad_key" } };
+}
+
 export async function loadState() {
   const out = await redis(["GET", STATE_DOC]);
   const raw = out && out.result;

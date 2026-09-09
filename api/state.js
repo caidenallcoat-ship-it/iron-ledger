@@ -13,36 +13,16 @@
  */
 
 import {
-  redis, sameSecret, storeConfigured, isLockedOut, noteFailure, clearFailures,
+  redis, authorise,
   STATE_DOC as DOC,
 } from "./_lib.js";
 
-const LEDGER_KEY = process.env.LEDGER_KEY;
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
-  if (!storeConfigured()) {
-    return res.status(503).json({
-      error: "storage_not_configured",
-      message:
-        "No Redis store is connected. Add the Upstash for Redis integration in the Vercel dashboard and redeploy.",
-    });
-  }
-  if (!LEDGER_KEY) {
-    return res.status(503).json({
-      error: "key_not_configured",
-      message: "Set the LEDGER_KEY environment variable in Vercel and redeploy.",
-    });
-  }
-  if (await isLockedOut(req)) {
-    return res.status(429).json({ error: "too_many_attempts" });
-  }
-  if (!sameSecret(req.headers["x-ledger-key"], LEDGER_KEY)) {
-    await noteFailure(req);
-    return res.status(401).json({ error: "bad_key" });
-  }
-  await clearFailures(req);
+  const auth = await authorise(req);
+  if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   try {
     if (req.method === "GET") {
