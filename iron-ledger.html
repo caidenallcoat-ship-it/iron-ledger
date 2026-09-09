@@ -1234,7 +1234,41 @@ const PHASES = [
   {weeks:"Weeks 5–6",label:"Load",  note:"Extra set stays, and the bell goes up on squats, deadlifts and rows if the last set still feels easy."},
   {weeks:"Weeks 7–8",label:"Peak",  note:"Two extra sets on the core movements and rest cut to 60s. Then take three easy days and start the block again heavier."}
 ];
-function phaseFor(w){ if(w<=2) return {i:0,add:0}; if(w<=4) return {i:1,add:1}; if(w<=6) return {i:2,add:1}; return {i:3,add:2}; }
+/* The programme is an eight-week block that repeats, which it always said in
+   words — "then take three easy days and start the block again heavier" — and
+   never once did. phaseFor used to return Peak for every week past six, so
+   from week seven the programme simply froze: same sets, same phase, forever,
+   with the masthead eventually reading "Week 52 - Peak".
+
+   Everything that asks about a phase passes the absolute week and gets an
+   answer about its place in the block, so sets, rest and phase all cycle from
+   one change. */
+const BLOCK_WEEKS = 8;
+function blockOf(week){
+  return { n: Math.floor((week - 1) / BLOCK_WEEKS) + 1,
+           w: ((week - 1) % BLOCK_WEEKS) + 1 };
+}
+function phaseFor(week){
+  const w = blockOf(week).w;
+  if(w<=2) return {i:0,add:0};
+  if(w<=4) return {i:1,add:1};
+  if(w<=6) return {i:2,add:1};
+  return {i:3,add:2};
+}
+/* What you finished the last block on, so "heavier" arrives with a number
+   rather than as an instruction you have to remember. Only worth saying in
+   the first fortnight of a new block. */
+function lastBlockLoads(){
+  const b = blockOf(weekNumber());
+  if(b.n < 2 || b.w > 2 || !state.log) return [];
+  const blockStart = key(addDays(parseKey(state.start), (b.n - 1) * BLOCK_WEEKS * 7));
+  const latest = {};
+  Object.keys(state.log).sort().forEach(function(k){
+    if(k >= blockStart) return;
+    Object.keys(state.log[k]).forEach(function(n){ latest[n] = state.log[k][n]; });
+  });
+  return Object.keys(latest).map(function(n){ return { n:n, load:latest[n] }; });
+}
 
 const EXCUSES = ["Too tired after work","Got home late","Still sore","Couldn't be bothered",
   "Away from home","Feeling ill","Forgot"];
@@ -2126,9 +2160,11 @@ function renderMasthead(){
   const w = weekNumber(), di = daysIn();
   /* The first 28 days predict adherence better than anything else, so they
      get counted out loud rather than buried in a week number. */
+  const bl = blockOf(w), ph = PHASES[phaseFor(w).i].label.toUpperCase();
   document.getElementById("m-week").textContent = di <= 28
-    ? "DAY "+di+" OF 28 · "+PHASES[phaseFor(w).i].label.toUpperCase()
-    : "WEEK "+w+" · "+PHASES[phaseFor(w).i].label.toUpperCase();
+    ? "DAY "+di+" OF 28 · "+ph
+    : (bl.n > 1 ? "BLOCK "+bl.n+" · WEEK "+bl.w+" · "+ph
+                : "WEEK "+w+" · "+ph);
   const sk = sessionToday();
   document.getElementById("m-slot").textContent = sk
     ? "SLOT "+(isWorkday(TODAY)?fmtH(DAY.slot):fmtH(DAY.weekendSlot))+" · "+minutesFor(sk,w,false)+" MIN"
@@ -4262,9 +4298,20 @@ function renderProgramme(){
       +'<p class="prog-body">'+s.work.map(function(w){ return setsFor(w,week)+"×"+w.n.replace(/ —.*/,"").toLowerCase(); }).join(", ")+'.</p>'
       +'<p class="prog-body">'+s.blurb+'</p></div>';
   }).join("");
-  const ph = PHASES[p.i];
+  const ph = PHASES[p.i], bl = blockOf(week), loads = lastBlockLoads();
   document.getElementById("phase-note").innerHTML =
-    "<b>"+ph.weeks+" · "+ph.label+" — you're in week "+week+"</b><br>"+ph.note;
+    "<b>"+ph.weeks+" · "+ph.label+" — "
+      + (bl.n > 1 ? "block "+bl.n+", week "+bl.w : "you're in week "+week)
+      + "</b><br>"+ph.note
+    + (bl.n > 1 && bl.w <= 2
+        ? "<br><br><b>The block has restarted.</b> Same sets as the start, and the bell goes up "
+          + "wherever the last set of the old block still felt easy."
+          + (loads.length
+              ? " You finished the last one on " + loads.map(function(l){
+                  return esc(l.n.replace(/ \u2014.*/, "").toLowerCase()) + " " + esc(l.load);
+                }).join(", ") + "."
+              : "")
+        : "");
 }
 
 /* Each panel is drawn on its own. A panel that throws used to take every
