@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T14:47:41.497Z";</script>
+<script>window.__BUILD__ = "2026-09-09T15:05:36.770Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -437,6 +437,25 @@
   /* weekly target */
   /* Sits flush under the figures grid, so it must not carry its own top
      border or a margin tuned to whatever the section gap happened to be. */
+  .mates{border:1px solid var(--line);background:var(--surface)}
+  .mates-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    padding:14px 17px 12px;border-bottom:1px solid var(--line)}
+  .mates-head .eyebrow{margin:0}
+  .mates-when{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--muted)}
+  .mate{display:flex;align-items:center;gap:13px;padding:13px 17px;border-top:1px solid var(--line)}
+  .mate:first-of-type{border-top:0}
+  .mate-n{font-family:"Archivo",sans-serif;font-size:15px;font-weight:600;color:var(--ink2);
+    flex:0 0 auto;min-width:5.5ch}
+  .mate[data-you="1"] .mate-n{color:var(--ink)}
+  .mate-bar{flex:1;height:6px;background:var(--surface2);min-width:60px}
+  .mate-bar i{display:block;height:100%;background:var(--ink2)}
+  .mate[data-met="1"] .mate-bar i{background:var(--done)}
+  .mate-c{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--muted);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mate[data-met="1"] .mate-c{color:var(--done)}
+  .mates-note{padding:12px 17px 14px;font-size:12.5px;line-height:1.6;color:var(--muted);
+    border-top:1px solid var(--line)}
   .reweigh{border:1px solid var(--line);border-left:3px solid var(--warn);
     background:var(--surface);padding:15px 17px}
   .reweigh h4{font-family:"Archivo",sans-serif;font-size:15.5px;font-weight:600;color:var(--ink)}
@@ -875,6 +894,7 @@
 
     <p class="faults" id="faults" hidden></p>
     <div class="reweigh" id="reweigh" hidden></div>
+    <div class="mates" id="mates" hidden></div>
 
     <div class="rank" id="rank"></div>
     <div class="rew" id="rew" data-on="0"></div>
@@ -2490,6 +2510,66 @@ function areaLabel(a){
 /* Asked once a month, not once a week. A body worth re-measuring does not
    change faster than that, and a scale checked more often is just noise with
    a mood attached. */
+/* ---------- the other people on this ledger ----------
+   The only thing anybody shares is the week they have had, and it is the
+   whole reason for two people being on one ledger rather than two copies of
+   the app. Fetched rather than stored: it is somebody else's record and this
+   device has no business keeping a copy of it. */
+var Mates = (function(){
+  let rows = null, at = 0, busy = false;
+  const FRESH_FOR = 120000;   // two minutes is plenty for a weekly number
+
+  function key(){
+    try{ return localStorage.getItem("iron-ledger-key") || ""; }catch(e){ return ""; }
+  }
+  function load(force){
+    if(busy) return;
+    if(!force && rows && Date.now() - at < FRESH_FOR) return;
+    const k = key();
+    if(!k) return;                       // no key, no server, nothing to show
+    busy = true;
+    fetch("/api/people", {headers:{"x-ledger-key":k}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        rows = (d && Array.isArray(d.people)) ? d.people : null;
+        at = Date.now();
+      })
+      .catch(function(){ /* offline is not an error worth shouting about */ })
+      .then(function(){ busy = false; renderMates(); });
+  }
+  return { load:load, rows:function(){ return rows; }, at:function(){ return at; } };
+})();
+
+function renderMates(){
+  const host = document.getElementById("mates");
+  if(!host) return;
+  const rows = Mates.rows();
+  /* A list of one person is just you, which the rest of the page already
+     covers. It only earns its space once somebody else is on here. */
+  if(!rows || rows.length < 2){ host.hidden = true; return; }
+  host.hidden = false;
+
+  const done = rows.filter(function(r){ return r.met; }).length;
+  host.innerHTML =
+    '<div class="mates-head"><span class="eyebrow">This week</span>'
+      + '<span class="mates-when">' + done + ' of ' + rows.length + ' clear</span></div>'
+    + rows.map(function(r){
+        const pct = Math.min(100, Math.round(r.trained / Math.max(1, r.target) * 100));
+        return '<div class="mate" data-you="' + (r.you ? 1 : 0) + '" data-met="' + (r.met ? 1 : 0) + '">'
+          + '<span class="mate-n">' + esc(r.name) + '</span>'
+          + '<span class="mate-bar"><i style="width:' + pct + '%"></i></span>'
+          + '<span class="mate-c">' + r.trained + '/' + r.target + (r.met ? ' \u2713' : '') + '</span>'
+          + '</div>';
+      }).join("")
+    + '<p class="mates-note">Everyone sees the week and nothing else \u2014 not weight, not money, '
+      + 'not the house. It only does anything if you both look at it.</p>';
+
+  /* onclick, not addEventListener: this function runs on every render, and
+     adding a listener each time is how one tap became several sets in session
+     mode. Assigning replaces rather than stacks. */
+  host.onclick = function(){ Mates.load(true); };
+}
+
 function renderReweigh(){
   const host = document.getElementById("reweigh");
   if(!host) return;
@@ -3188,6 +3268,7 @@ function logSession(k, sk, express){
   Rest.stop();
   Wake.set(false);
   save(); renderAll();
+  if(typeof Mates !== "undefined") Mates.load(true);
 }
 
 function renderCal(){
@@ -5068,6 +5149,7 @@ function renderAll(){
   renderFaults = [];
   draw("masthead", renderMasthead); draw("clock", renderClock);
   draw("verdict", renderVerdict);   draw("rank", renderRank);
+  draw("mates", renderMates);
   draw("kit", maybeAskForKit);
   draw("re-weigh", renderReweigh);
   draw("rewards", renderRewards);
@@ -5091,6 +5173,7 @@ function renderAll(){
   /* renderAll runs once during boot, before this module is assigned, so this
      has to tolerate its absence. */
   if(typeof Notify !== "undefined") draw("notifications", function(){ Notify.init(); });
+  if(typeof Mates !== "undefined") Mates.load(false);
   showFaults();
 }
 
