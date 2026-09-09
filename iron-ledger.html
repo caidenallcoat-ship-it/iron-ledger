@@ -530,6 +530,27 @@
     border:1px solid var(--line2);background:var(--surface);color:var(--ink)}
   .setup-opt[aria-pressed="true"]{background:var(--ink);color:var(--ground);border-color:var(--ink)}
 
+
+  /* Monday check-in */
+  .review{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--warn)}
+  .review-last{padding:18px 22px;border-bottom:1px solid var(--line);
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:16px}
+  .rl{display:flex;flex-direction:column;gap:3px}
+  .rl-k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--muted)}
+  .rl-v{font-family:"Archivo Black",Arial,sans-serif;font-size:22px;line-height:1.05;
+    font-variant-numeric:tabular-nums}
+  .rl[data-flag="bad"] .rl-v{color:var(--miss)}
+  .rl[data-flag="good"] .rl-v{color:var(--done)}
+  .review-say{padding:16px 22px;border-bottom:1px solid var(--line);font-size:14.5px;
+    line-height:1.65;color:var(--ink)}
+  .review-ask{padding:18px 22px;display:flex;flex-direction:column;gap:12px}
+  .review-areas{display:flex;gap:7px;flex-wrap:wrap}
+  .review-area{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;padding:8px 12px;border:1px solid var(--line2);
+    background:var(--surface);color:var(--ink2)}
+  .review-area[aria-pressed="true"]{border-color:currentColor;font-weight:600}
+
   /* punch card */
   .box{background:var(--surface);border:1px solid var(--line);padding:20px 22px}
   .cal-scroll{overflow-x:auto;padding-bottom:6px}
@@ -638,6 +659,14 @@
       <span id="m-date">—</span><span id="m-week">—</span><span id="m-slot">—</span>
     </div>
   </header>
+
+  <section id="s-review" class="review" hidden>
+    <div class="ring-head">
+      <h3>New week</h3>
+      <span class="ring-status" data-s="ok" id="review-when"></span>
+    </div>
+    <div id="review-body"></div>
+  </section>
 
   <section id="s-setup" class="setup" hidden>
     <div class="ring-head">
@@ -1081,7 +1110,7 @@ const BLANK = {
   areas:{ eat:{target:5}, sleep:{target:5, by:23}, money:{cap:100} },
   /* Ad-hoc jobs that only matter this week, per area. Unfinished ones carry
      forward with a count rather than quietly disappearing. */
-  weekly:{}, weeklyWeek:null,
+  weekly:{}, weeklyWeek:null, weekReviewed:null,
   onboarded:false, goal:null, slot:null
 };
 const LS_KEY = "iron-ledger-v2";
@@ -3160,6 +3189,125 @@ function renderSetup(){
   });
 }
 
+
+/* ---------- the Monday check-in ----------
+   Once a week: here is what last week actually came to, now say what this one
+   needs. Shown on the first open of a new week and then not again. */
+function lastWeekFigures(){
+  const thisMon = mondayOf(TODAY);
+  const lastMon = addDays(thisMon, -7);
+  const tgt = weekTarget();
+  const sessions = doneInWeek(lastMon);
+
+  let jobsBehind = 0;
+  choreList().forEach(function(c){ if(choreOver(c) > 0) jobsBehind++; });
+
+  let eat = 0, sleep = 0, spent = 0;
+  for(let i=0;i<7;i++){
+    const k = key(addDays(lastMon,i));
+    const m = marks(k);
+    if(eatOK(m)) eat++;
+    if(sleepOK(m)) sleep++;
+    spent += spendOn(k);
+  }
+
+  let carried = 0;
+  Object.keys(state.weekly || {}).forEach(function(a){
+    (state.weekly[a] || []).forEach(function(t){ if(t.carried) carried++; });
+  });
+
+  return { lastMon:lastMon, sessions:sessions, target:tgt, jobsBehind:jobsBehind,
+           eat:eat, sleep:sleep, spent:Math.round(spent*100)/100, carried:carried };
+}
+
+function reviewVerdict(f){
+  if(f.sessions >= f.target) return "You cleared last week — " + f.sessions + " of " + f.target + ". Do it again.";
+  if(f.sessions === 0) return "Nothing logged last week at all. This one starts at zero either way, so it may as well start.";
+  return f.sessions + " of " + f.target + " last week. Not a disaster, not a week either.";
+}
+
+function renderReview(){
+  const sec = document.getElementById("s-review");
+  if(!sec) return;
+  const thisMon = key(mondayOf(TODAY));
+  const started = daysBetween(state.start, TODAY_K) >= 7;   // nothing to review in week one
+  sec.hidden = !(started && state.weekReviewed !== thisMon);
+  if(sec.hidden) return;
+
+  const f = lastWeekFigures();
+  document.getElementById("review-when").textContent =
+    "week of " + parseKey(f.lastMon).toLocaleDateString(undefined,{day:"numeric",month:"short"});
+
+  const tile = function(k, v, flag){
+    return '<div class="rl"' + (flag ? ' data-flag="' + flag + '"' : "") + '>'
+      + '<span class="rl-k">' + k + '</span><span class="rl-v">' + v + '</span></div>';
+  };
+
+  document.getElementById("review-body").innerHTML =
+    '<div class="review-last">'
+      + tile("Sessions", f.sessions + "/" + f.target, f.sessions >= f.target ? "good" : "bad")
+      + tile("Eating", f.eat + "/" + areaCfg().eat.target)
+      + tile("Sleep", f.sleep + "/" + areaCfg().sleep.target)
+      + tile("Spent", money(f.spent), f.spent > areaCfg().money.cap ? "bad" : null)
+      + tile("Jobs behind", f.jobsBehind, f.jobsBehind ? "bad" : "good")
+      + tile("Carried over", f.carried, f.carried ? "bad" : null)
+    + '</div>'
+    + '<p class="review-say">' + esc(reviewVerdict(f)) + '</p>'
+    + '<div class="review-ask">'
+      + '<h4 style="margin:0;font-size:15.5px;font-weight:600">What has to happen this week?</h4>'
+      + '<p class="sec-note">Pick where it belongs, type it, hit add. It carries over if you don’t do it.</p>'
+      + '<div class="review-areas" id="review-areas">'
+        + AREAS.map(function(a,i){
+            return '<button class="review-area" type="button" data-ra="' + a.id + '"'
+              + ' aria-pressed="' + (i === 1) + '" style="color:var(' + a.colour + ')">' + a.name + '</button>';
+          }).join("")
+      + '</div>'
+      + '<div class="note-bar" style="padding:0;border:0;background:transparent">'
+        + '<div class="field grow"><label for="review-in">Task</label>'
+          + '<input id="review-in" type="text" maxlength="80" placeholder="Ring the dentist"></div>'
+        + '<button class="btn btn-primary" type="button" id="review-add">Add</button>'
+      + '</div>'
+      + '<p class="sec-note" id="review-added"></p>'
+    + '</div>'
+    + '<div class="actions">'
+      + '<button class="btn btn-primary" type="button" id="review-done">Right, that’s the week</button>'
+    + '</div>';
+
+  let picked = AREAS[1].id;
+  const areasEl = document.getElementById("review-areas");
+  areasEl.querySelectorAll("[data-ra]").forEach(function(b){
+    b.addEventListener("click", function(){
+      picked = b.dataset.ra;
+      areasEl.querySelectorAll("[data-ra]").forEach(function(x){
+        x.setAttribute("aria-pressed", String(x.dataset.ra === picked));
+      });
+    });
+  });
+
+  const input = document.getElementById("review-in");
+  const added = document.getElementById("review-added");
+  function add(){
+    const v = input.value.trim();
+    if(!v) return;
+    weeklyFor(picked).push({id:"w-" + Date.now().toString(36), text:v, done:false});
+    input.value = "";
+    save(); renderAllWeekly(); renderRing();
+    const total = AREAS.reduce(function(n,a){ return n + weeklyOutstanding(a.id); }, 0);
+    added.textContent = plural(total, "task") + " on the board for this week.";
+    input.focus();
+  }
+  document.getElementById("review-add").addEventListener("click", add);
+  input.addEventListener("keydown", function(e){
+    if(e.key === "Enter"){ e.preventDefault(); add(); }
+  });
+
+  document.getElementById("review-done").addEventListener("click", function(){
+    state.weekReviewed = thisMon;
+    save(); renderAll();
+    window.scrollTo({top:0, behavior:"smooth"});
+  });
+}
+
 function renderGuide(){
   const host = document.getElementById("guide-list");
   host.innerHTML = Object.keys(CUES).map(function(id){
@@ -3199,6 +3347,7 @@ function renderProgramme(){
 function renderAll(){
   renderMasthead(); renderClock(); renderVerdict(); renderFigs(); renderTarget();
   renderSetup();
+  renderReview();
   renderAllWeekly();
   renderRing();
   renderSession(); renderEat(); renderSleep(); renderMoney(); renderHouse(); renderPeople();
