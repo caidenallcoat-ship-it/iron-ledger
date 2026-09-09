@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T09:21:29.143Z";</script>
+<script>window.__BUILD__ = "2026-09-09T09:25:22.802Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -567,6 +567,55 @@
     background:var(--surface);color:var(--ink2)}
   .review-area[aria-pressed="true"]{border-color:currentColor;font-weight:600}
 
+
+  /* ---------- session mode ----------
+     For the thirty minutes you are on the floor, out of breath, with the
+     phone somewhere near your feet. Everything else in the app is for
+     deciding to train; this is the only screen for actually training. */
+  .smode{position:fixed;inset:0;z-index:60;background:var(--ground);display:none;
+    flex-direction:column;padding:calc(18px + env(safe-area-inset-top)) 20px
+    calc(20px + env(safe-area-inset-bottom))}
+  .smode[data-on="1"]{display:flex}
+  .sm-top{display:flex;align-items:center;justify-content:space-between;gap:14px;
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted)}
+  .sm-quit{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;background:transparent;border:1px solid var(--line2);
+    color:var(--muted);padding:7px 11px}
+  .sm-quit:hover{color:var(--ink);border-color:var(--ink)}
+
+  .sm-bar{display:flex;gap:5px;margin-top:16px}
+  .sm-seg{flex:1;height:4px;background:var(--surface2)}
+  .sm-seg[data-s="done"]{background:var(--done)}
+  .sm-seg[data-s="now"]{background:var(--warn)}
+
+  .sm-body{flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;
+    padding:16px 0}
+  .sm-name{font-family:"Archivo Black",Arial,sans-serif;font-size:clamp(28px,8vw,44px);
+    line-height:1.08;letter-spacing:-.02em;color:var(--ink);text-wrap:balance}
+  .sm-dose{font-family:"Archivo Black",Arial,sans-serif;font-size:clamp(46px,15vw,80px);
+    line-height:1;letter-spacing:-.03em;color:var(--warn);font-variant-numeric:tabular-nums;
+    margin-top:6px}
+  .sm-sets{font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);margin-top:12px}
+  .sm-cue{margin-top:20px;padding:16px 18px;background:var(--surface);
+    border-left:3px solid var(--miss);font-size:14.5px;line-height:1.6;color:var(--ink2);
+    max-width:52ch}
+  .sm-cue b{color:var(--ink)}
+
+  .sm-foot{display:flex;flex-direction:column;gap:12px}
+  .sm-set{width:100%;font-family:"Archivo",sans-serif;font-size:19px;font-weight:600;
+    padding:22px;background:var(--ink);color:var(--ground);border:1px solid var(--ink)}
+  .sm-set:active{opacity:.85}
+  .sm-nav{display:flex;gap:12px}
+  .sm-nav button{flex:1;font-family:"Archivo",sans-serif;font-size:14.5px;font-weight:500;
+    padding:14px;background:transparent;border:1px solid var(--line2);color:var(--ink2)}
+  .sm-nav button:disabled{opacity:.35}
+  .sm-rest{text-align:center;font-family:"Archivo Black",Arial,sans-serif;
+    font-size:34px;font-variant-numeric:tabular-nums;color:var(--warn);line-height:1}
+  .sm-rest-lab{text-align:center;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+
   /* punch card */
   .box{background:var(--surface);border:1px solid var(--line);padding:20px 22px}
   .cal-scroll{overflow-x:auto;padding-bottom:6px}
@@ -870,6 +919,31 @@
       </div>
     </div>
   </section>
+
+  <div class="smode" id="smode" data-on="0" role="dialog" aria-modal="true" aria-label="Session in progress">
+    <div class="sm-top">
+      <span id="sm-title"></span>
+      <button class="sm-quit" type="button" id="sm-quit">Stop</button>
+    </div>
+    <div class="sm-bar" id="sm-bar"></div>
+    <div class="sm-body">
+      <div class="sm-name" id="sm-name"></div>
+      <div class="sm-dose" id="sm-dose"></div>
+      <div class="sm-sets" id="sm-sets"></div>
+      <div class="sm-cue" id="sm-cue"></div>
+    </div>
+    <div class="sm-foot">
+      <div id="sm-resting" hidden>
+        <div class="sm-rest-lab">Rest</div>
+        <div class="sm-rest" id="sm-rest">1:30</div>
+      </div>
+      <button class="sm-set" type="button" id="sm-set">Set done</button>
+      <div class="sm-nav">
+        <button type="button" id="sm-prev">Back</button>
+        <button type="button" id="sm-next">Skip</button>
+      </div>
+    </div>
+  </div>
 
   <div class="rest-bar" id="rest-bar" hidden>
     <div>
@@ -2080,7 +2154,8 @@ function renderSession(){
             +'<button class="btn btn-primary" type="button" id="ex-on">Show the short version</button>')+'</div>'
       : "")
     +'<div class="actions">'
-      +'<button class="btn '+(done?"btn-done":"btn-primary")+'" type="button" id="log-btn">'+(done?"Session logged ✓":"Mark session done")+'</button>'
+      +(done ? "" : '<button class="btn btn-primary" type="button" id="sm-start">Start session</button>')
+      +'<button class="btn '+(done?"btn-done":"")+'" type="button" id="log-btn">'+(done?"Session logged ✓":"Mark session done")+'</button>'
       +(done ? '<button class="btn btn-ghost" type="button" id="undo-btn">Undo</button>'
              : '<button class="btn btn-ghost" type="button" id="skip-btn">I\'m skipping tonight</button>')
       +'<span class="act-note" id="tick-note">'+ticked.length+'/'+list.length+' ticked</span></div>'
@@ -2099,6 +2174,7 @@ function renderSession(){
       +'<button class="btn btn-ghost" type="button" id="ex-cancel" style="align-self:flex-start">Actually, I\'ll train</button></div>';
 
   wireSession(list.length);
+  wireSessionMode();
 }
 
 function wireSession(count){
@@ -3371,6 +3447,126 @@ function renderGoal(){
     : state.goal
       ? "The ring opens on Training, and the nudge leans on the session."
       : "Not set. The ring opens on Training.";
+}
+
+
+/* ---------- session mode ---------- */
+var SMode = (function(){
+  let list = [], i = 0, setsDone = [], sk = null, restEnd = 0, tick = null;
+
+  function el(id){ return document.getElementById(id); }
+  function targetSets(w){
+    const week = weekNumber();
+    return expressMode ? Math.max(2, Math.ceil(setsFor(w, week) / 2)) : setsFor(w, week);
+  }
+
+  function paintRest(){
+    const left = (restEnd - Date.now()) / 1000;
+    if(left <= 0){
+      el("sm-resting").hidden = true;
+      clearInterval(tick); tick = null;
+      return;
+    }
+    el("sm-rest").textContent = Math.floor(left / 60) + ":" + String(Math.ceil(left % 60)).padStart(2, "0");
+  }
+  function startRest(){
+    restEnd = Date.now() + restSeconds() * 1000;
+    el("sm-resting").hidden = false;
+    paintRest();
+    clearInterval(tick);
+    tick = setInterval(paintRest, 250);
+  }
+
+  function render(){
+    if(!list.length) return;
+    const w = list[i], want = targetSets(w), got = setsDone[i] || 0;
+    const cue = CUES[w.cue];
+
+    el("sm-title").textContent = "Session " + sk + " — " + SESSIONS[sk].name
+      + (expressMode ? " · short" : "");
+    el("sm-bar").innerHTML = list.map(function(x, n){
+      const s = (setsDone[n] || 0) >= targetSets(x) ? "done" : (n === i ? "now" : "");
+      return '<span class="sm-seg" data-s="' + s + '"></span>';
+    }).join("");
+
+    el("sm-name").textContent = w.n;
+    el("sm-dose").textContent = w.d;
+    el("sm-sets").textContent = got + " of " + want + " sets";
+    el("sm-cue").innerHTML = cue
+      ? "<b>Watch for:</b> " + cue.fault
+      : "";
+    el("sm-set").textContent = got + 1 >= want ? "Last set done" : "Set done";
+    el("sm-prev").disabled = i === 0;
+    el("sm-next").textContent = i === list.length - 1 ? "Finish" : "Skip";
+  }
+
+  function advance(){
+    if(i < list.length - 1){ i++; render(); }
+    else finish();
+  }
+
+  function finish(){
+    /* Everything with all its sets in counts as ticked, so the card behind
+       agrees with what actually happened. */
+    const ticks = [];
+    list.forEach(function(w, n){
+      if((setsDone[n] || 0) >= targetSets(w)) ticks.push(SESSIONS[sk].work.indexOf(w));
+    });
+    state.ticks[TODAY_K] = ticks.filter(function(x){ return x > -1; });
+    save();
+    SMode.close();
+    const btn = document.getElementById("log-btn");
+    if(btn && !state.done[TODAY_K]) btn.scrollIntoView({block:"center"});
+    renderAll();
+  }
+
+  return {
+    open: function(){
+      sk = sessionToday();
+      list = workFor(sk, expressMode);
+      i = 0;
+      setsDone = list.map(function(){ return 0; });
+      el("smode").setAttribute("data-on", "1");
+      document.body.style.overflow = "hidden";
+      Wake.set(true);
+      render();
+    },
+    close: function(){
+      el("smode").setAttribute("data-on", "0");
+      document.body.style.overflow = "";
+      el("sm-resting").hidden = true;
+      clearInterval(tick); tick = null;
+      Wake.set(false);
+    },
+    setDone: function(){
+      const w = list[i], want = targetSets(w);
+      setsDone[i] = (setsDone[i] || 0) + 1;
+      if(setsDone[i] >= want){
+        render();
+        setTimeout(advance, 350);
+      } else {
+        render();
+        startRest();
+      }
+    },
+    next: advance,
+    prev: function(){ if(i > 0){ i--; render(); } }
+  };
+})();
+
+function wireSessionMode(){
+  const start = document.getElementById("sm-start");
+  if(start) start.addEventListener("click", function(){ SMode.open(); });
+  const q = document.getElementById("sm-quit");
+  if(q) q.addEventListener("click", function(){
+    if(confirm("Stop the session? What you've ticked is kept.")) SMode.close();
+  });
+  const set = document.getElementById("sm-set");
+  if(set) set.addEventListener("click", function(){ SMode.setDone(); });
+  const nx = document.getElementById("sm-next");
+  if(nx) nx.addEventListener("click", function(){ SMode.next(); });
+  const pv = document.getElementById("sm-prev");
+  if(pv) pv.addEventListener("click", function(){ SMode.prev(); });
 }
 
 function renderGuide(){
