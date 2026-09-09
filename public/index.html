@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-08T15:24:27.196Z";</script>
+<script>window.__BUILD__ = "2026-09-09T08:31:09.591Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -152,7 +152,7 @@
     --area-money:#C39B62; --area-sleep:#8B7BC0; --area-people:#A3B84F;
   }
 
-  .ring-wrap{position:relative;height:356px;touch-action:none;cursor:grab;user-select:none}
+  .ring-wrap{position:relative;height:356px;touch-action:pan-y;cursor:grab;user-select:none}
   .ring-wrap.dragging{cursor:grabbing}
   /* Pinned to the same origin and scale as the discs. It used to stretch to
      the container and scale independently, so the track and the discs sat in
@@ -204,7 +204,7 @@
   }
 
   /* collapsed ring: the compact switcher that replaces the tab bar */
-  .ring-wrap{overflow:hidden;transition:height .32s cubic-bezier(.22,1,.36,1),opacity .22s}
+  .ring-wrap{overflow:hidden;transition:opacity .2s}
   .ring-wrap[data-collapsed="1"]{height:0 !important;opacity:0;pointer-events:none}
   .ring-strip{position:sticky;top:env(safe-area-inset-top);z-index:30;display:none;
     align-items:center;gap:10px;padding:9px 4px;background:var(--ground);
@@ -2749,17 +2749,30 @@ function renderRing(){
     ;
 }
 
-let ringCollapsed = false;
+let ringCollapsed = false, ringLocked = false, ringLastY = 0;
 
 function setRingCollapsed(on){
-  if(ringCollapsed === on) return;
-  ringCollapsed = on;
+  if(ringCollapsed === on || ringLocked) return;
   const wrap = document.getElementById("ring");
   const strip = document.getElementById("ring-strip");
   if(!wrap || !strip) return;
+
+  /* Folding the ring removes ~356px from the document. Without compensating,
+     everything below jumps up by that much, the scroll position lands
+     somewhere it wasn't, and the next scroll event reads it as a gesture -
+     which is what made this feel twitchy and fight itself. */
+  const before = document.documentElement.scrollHeight;
+
+  ringCollapsed = on;
   wrap.setAttribute("data-collapsed", on ? "1" : "0");
   strip.setAttribute("data-show", on ? "1" : "0");
   if(on) renderStrip();
+
+  const shifted = before - document.documentElement.scrollHeight;
+  if(shifted) window.scrollTo(0, Math.max(0, window.scrollY - shifted));
+
+  ringLocked = true;
+  setTimeout(function(){ ringLocked = false; ringLastY = window.scrollY; }, 260);
 }
 
 function renderStrip(){
@@ -2785,7 +2798,9 @@ function renderStrip(){
 }
 
 function wireRingCollapse(){
+  const wrap = document.getElementById("ring");
   const strip = document.getElementById("ring-strip");
+
   if(strip){
     function open(){
       setRingCollapsed(false);
@@ -2796,14 +2811,22 @@ function wireRingCollapse(){
       if(e.key === "Enter" || e.key === " "){ e.preventDefault(); open(); }
     });
   }
-  /* Scrolling into the content folds the ring away; coming back up brings it
-     back. The strip stays, so you can still change area either way. */
-  let lastY = window.scrollY;
+
+  ringLastY = window.scrollY;
   addEventListener("scroll", function(){
+    if(ringLocked) return;
     const y = window.scrollY;
-    if(y > 150 && y > lastY + 4) setRingCollapsed(true);
-    else if(y < 60 || y < lastY - 24) setRingCollapsed(false);
-    lastY = y;
+    const ringH = wrap ? wrap.offsetHeight : 356;
+
+    /* Only fold once the ring is genuinely behind you. Collapsing earlier
+       means the compensation would clamp at zero and bounce you back to the
+       top, which is the loop this used to get into. */
+    if(!ringCollapsed && y > ringH + 90 && y > ringLastY + 8){
+      setRingCollapsed(true);
+    } else if(ringCollapsed && y < 20){
+      setRingCollapsed(false);
+    }
+    ringLastY = y;
   }, {passive:true});
 }
 
