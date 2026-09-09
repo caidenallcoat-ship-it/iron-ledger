@@ -9,3 +9,4 @@ node_modules
 .claude/skills/
 skills-lock.json
 icon-options/
+archie-key.txt

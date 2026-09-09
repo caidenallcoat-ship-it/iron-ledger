@@ -29,6 +29,26 @@ localStorage. Adding a field means checking all three paths still work.
 
 See DEPLOY.md for the Vercel setup.
 
+## Two people, not one
+
+Since 2026-09-09 this is a multi-user ledger. Each person has their own long
+random key; only its SHA-256 is stored, and the key IS the identity — there
+are no passwords and no accounts.
+
+- `iron-ledger:u:<uid>` is a person's record, `iron-ledger:k:<hash>` maps a
+  key to them, `iron-ledger:users` is the roster, `iron-ledger:subs:<uid>`
+  their devices.
+- The owner is whoever holds `LEDGER_KEY` (Caiden). Only the owner can add or
+  remove people, via `/api/people`.
+- Everyone sees everyone's WEEK and nothing else. Weight, money, sleep, the
+  house and rewards are private. There is a test asserting that; do not widen
+  what is shared without a reason.
+- `loadFor(uid)` / `saveFor(uid, state)` — never read or write
+  `iron-ledger:state` directly again. It is kept mirrored for rollback only.
+- Anything in `api/` becomes a serverless function, tests included, and they
+  count against the plan's function limit. `.vercelignore` excludes
+  `api/*.test.mjs`; keep it that way or deploys fail with a bare "Error".
+
 ## Publishing
 
 Publish `iron-ledger.html` to the existing artifact:
