@@ -298,3 +298,48 @@ be live rather than a 7am Shortcut. Same trade: OAuth, a token to keep, and
 a third party with standing access to your data. The Shortcut runs when you
 say so and can be read in full, which for one person's training log is the
 better bargain.
+
+## Spending
+
+```
+POST /api/spend   {"amount": 12.50}          -> add to today
+POST /api/spend   {"set": 12.50}             -> replace today's total
+GET  /api/spend                              -> the week against your cap
+```
+
+`amount` adds, `set` replaces. A person saying "log a tenner" means add; a
+bank feed replaying the same day means set, or the day doubles.
+
+### Shortcut 10 — "Hey Siri, log a tenner"
+
+**Ask for Input** (Number) → **Get Contents of URL**, POST `{"amount": <input>}`
+→ **Get Dictionary Value** `left` → **Show Result**. Siri answers with what is
+left of the week's cap. Two seconds at the till, and it is the last thing in
+the ledger you still type by hand.
+
+An earned off-budget day still shows in the total and is simply left out of
+the cap — the same rule as everywhere else here.
+
+## Revolut, honestly
+
+**There is no personal Revolut API.** Their Open Banking API requires becoming
+a Revolut *partner*, which in practice means being an FCA-authorised
+third-party provider; the Business API needs a Business account. Neither is
+open to an individual wanting to read their own spending.
+
+The route that does exist is Open Banking through a licensed aggregator —
+**GoCardless Bank Account Data** (formerly Nordigen, free tier, Revolut
+supported) or TrueLayer. That is genuinely buildable and would post straight
+to `/api/spend` with `set`. What it costs you:
+
+- an account with the aggregator, and a secret to store
+- approving access in the Revolut app, through a redirect
+- **re-approving every 90 days.** PSD2 mandates it. It is not a bug anyone can
+  fix, and it means the feed silently stops four times a year until you notice
+
+That last point is the reason to think about it rather than just say yes. An
+integration that breaks quarterly and fails quietly is worse than a Siri
+phrase that always works, and the whole point of the cap is to make you notice
+spending — automatic logging removes the noticing along with the typing.
+
+If you want it anyway, say so and I will build it. Shortcut 10 works today.

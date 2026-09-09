@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node build.mjs",
     "preview": "node build.mjs && python -m http.server 8766 --directory public",
-    "test": "node api/_lib.test.mjs && node api/auth.test.mjs && node api/session.test.mjs"
+    "test": "node api/_lib.test.mjs && node api/auth.test.mjs && node api/session.test.mjs && node api/spend.test.mjs"
   },
   "dependencies": {
     "web-push": "^3.6.7"
