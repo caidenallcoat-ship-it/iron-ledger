@@ -587,6 +587,14 @@
     max-width:52ch}
   .sm-cue b{color:var(--ink)}
 
+  .sm-load{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .sm-load-lab{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted)}
+  .sm-load button{font-family:"IBM Plex Mono",monospace;font-size:14px;padding:12px 15px;
+    background:transparent;border:1px solid var(--line2);color:var(--ink2);
+    font-variant-numeric:tabular-nums;min-width:52px}
+  .sm-load button[data-on="1"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
+
   .sm-foot{display:flex;flex-direction:column;gap:12px}
   .sm-set{width:100%;font-family:"Archivo",sans-serif;font-size:19px;font-weight:600;
     padding:22px;background:var(--ink);color:var(--ground);border:1px solid var(--ink)}
@@ -913,6 +921,7 @@
       <div class="sm-name" id="sm-name"></div>
       <div class="sm-dose" id="sm-dose"></div>
       <div class="sm-sets" id="sm-sets"></div>
+      <div class="sm-load" id="sm-load" hidden></div>
       <div class="sm-cue" id="sm-cue"></div>
     </div>
     <div class="sm-foot">
@@ -1489,6 +1498,40 @@ function areaCfg(){
   if(!a.money) a.money = {cap:100};
   return a;
 }
+/* ---------- what was actually lifted ----------
+   The programme says the bell goes up in week 5 if the last set felt easy,
+   which is worthless if nothing recorded what week 1 used. state.log is what
+   was lifted on a date; state.loads is the numbers already used for a
+   movement, so after the first entry logging is a single tap. Nothing is
+   required — an unlogged movement simply has no number, and is never nagged. */
+function loadPalette(name){ return (state.loads && state.loads[name]) || []; }
+function loadOn(k, name){ return (state.log && state.log[k] && state.log[k][name]) || ""; }
+function setLoad(name, v){
+  if(!state.log) state.log = {};
+  const day = state.log[TODAY_K] || (state.log[TODAY_K] = {});
+  if(v) day[name] = v; else delete day[name];
+  if(!Object.keys(day).length) delete state.log[TODAY_K];
+  if(v){
+    if(!state.loads) state.loads = {};
+    const p = loadPalette(name).filter(function(x){ return x !== v; });
+    p.unshift(v);
+    /* Four is more bells than anyone owns; the oldest falls off the row. */
+    state.loads[name] = p.slice(0, 4);
+  }
+  save();
+}
+/* The most recent day before today that recorded this movement. */
+function lastLoad(name){
+  if(!state.log) return null;
+  const ks = Object.keys(state.log).filter(function(k){
+    return k < TODAY_K && state.log[k] && state.log[k][name];
+  }).sort();
+  if(!ks.length) return null;
+  return { load: state.log[ks[ks.length - 1]][name], date: ks[ks.length - 1] };
+}
+/* Only the bell movements. Push-ups and planks have no number to record. */
+function takesLoad(w){ return !!(CUES[w.cue] && CUES[w.cue].kit === "Kettlebell"); }
+
 function marks(k){ if(!state.daily) state.daily = {}; return state.daily[k] || {}; }
 function setMark(k, field, on){
   if(!state.daily) state.daily = {};
@@ -3478,6 +3521,29 @@ var SMode = (function(){
     el("sm-cue").innerHTML = cue
       ? "<b>Watch for:</b> " + cue.fault
       : "";
+
+    /* The bell row. Empty the first time round, one tap every time after. */
+    const lr = el("sm-load");
+    if(!takesLoad(w)){
+      lr.hidden = true;
+      lr.innerHTML = "";
+    } else {
+      const cur = loadOn(TODAY_K, w.n), prev = lastLoad(w.n);
+      /* Last time's bell is always offered, even on a device whose palette
+         has been cleared — otherwise the one number you most want is the one
+         you have to type. */
+      const pal = loadPalette(w.n).slice();
+      if(prev && pal.indexOf(prev.load) < 0) pal.push(prev.load);
+      pal.sort(function(a, b){ return Number(a) - Number(b); });
+      lr.hidden = false;
+      lr.innerHTML = '<span class="sm-load-lab">Bell'
+        + (prev && !cur ? " · last time " + esc(prev.load) : "") + '</span>'
+        + pal.map(function(v){
+            return '<button type="button" data-load="' + esc(v) + '" data-on="'
+              + (v === cur ? 1 : 0) + '">' + esc(v) + '</button>';
+          }).join("")
+        + '<button type="button" data-load="+">' + (pal.length ? "+" : "Set the bell") + '</button>';
+    }
     el("sm-set").textContent = got + 1 >= want ? "Last set done" : "Set done";
     el("sm-prev").disabled = i === 0;
     el("sm-next").textContent = i === list.length - 1 ? "Finish" : "Skip";
@@ -3496,6 +3562,11 @@ var SMode = (function(){
       if((setsDone[n] || 0) >= targetSets(w)) ticks.push(SESSIONS[sk].work.indexOf(w));
     });
     state.ticks[TODAY_K] = ticks.filter(function(x){ return x > -1; });
+    /* A bell tapped for a movement you then skipped isn't a record of
+       anything. Drop it rather than let it become next week's baseline. */
+    list.forEach(function(w, n){
+      if(!(setsDone[n] || 0) && loadOn(TODAY_K, w.n)) setLoad(w.n, "");
+    });
     save();
     SMode.close();
     const btn = document.getElementById("log-btn");
@@ -3504,6 +3575,19 @@ var SMode = (function(){
   }
 
   return {
+    load: function(v){
+      const w = list[i];
+      if(!w) return;
+      if(v === "+"){
+        const raw = prompt("What bell? Just the number in kg.", "");
+        if(raw === null) return;
+        v = String(raw).replace(/[^0-9.]/g, "").slice(0, 5);
+        if(!v) return;
+      }
+      /* Tapping the one already lit turns it off, for a mis-tap. */
+      setLoad(w.n, loadOn(TODAY_K, w.n) === v ? "" : v);
+      render();
+    },
     open: function(){
       sk = sessionToday();
       list = workFor(sk, expressMode);
@@ -3549,6 +3633,11 @@ function wireSMOverlay(){
   if(nx) nx.addEventListener("click", function(){ SMode.next(); });
   const pv = document.getElementById("sm-prev");
   if(pv) pv.addEventListener("click", function(){ SMode.prev(); });
+  const lr = document.getElementById("sm-load");
+  if(lr) lr.addEventListener("click", function(e){
+    const b = e.target.closest("button[data-load]");
+    if(b) SMode.load(b.getAttribute("data-load"));
+  });
 }
 
 /* The start button sits inside the session card, which is re-rendered, so
