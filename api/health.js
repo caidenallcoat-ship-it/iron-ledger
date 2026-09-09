@@ -15,7 +15,8 @@
  *
  * Same LEDGER_KEY as everything else, same lockout on repeated bad keys.
  */
-import { redis, authorise, loadState, localParts, STATE_DOC, hasPass } from "./_lib.js";
+import { authorise, localParts, hasPass } from "./_lib.js";
+import { loadFor, saveFor } from "./_users.js";
 
 
 /** "23:12", "2026-09-08T23:12:00Z" or 23.2 -> hours past midnight, or null. */
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   try {
-    const state = await loadState();
+    const state = await loadFor(auth.uid);
     if (!state) return res.status(404).json({ error: "no_record_yet" });
     const today = localParts().key;
 
@@ -109,8 +110,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "nothing_to_record" });
     }
     if (!sleep) {
-      state.updatedAt = Date.now();
-      await redis(["SET", STATE_DOC, JSON.stringify(state)]);
+      await saveFor(auth.uid, state);
       return res.status(200).json({ ok: true, date, weight: weightSet });
     }
 
@@ -133,8 +133,7 @@ export default async function handler(req, res) {
     if (Number.isFinite(Number(sleep.hours))) day.slept = Math.round(Number(sleep.hours) * 10) / 10;
     if (!Object.keys(day).length) delete state.daily[date];
 
-    state.updatedAt = Date.now();
-    await redis(["SET", STATE_DOC, JSON.stringify(state)]);
+    await saveFor(auth.uid, state);
 
     return res.status(200).json({
       ok: true,

@@ -11,7 +11,8 @@
  * `set`, because adding twice would double the day; a person saying "log a
  * tenner" means add.
  */
-import { redis, authorise, loadState, localParts, STATE_DOC } from "./_lib.js";
+import { authorise, localParts } from "./_lib.js";
+import { loadFor, saveFor } from "./_users.js";
 
 function mondayOf(key) {
   const [y, m, d] = key.split("-").map(Number);
@@ -43,7 +44,7 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   try {
-    const state = await loadState();
+    const state = await loadFor(auth.uid);
     if (!state) return res.status(404).json({ error: "no_record_yet" });
     const today = localParts().key;
     const monday = mondayOf(today);
@@ -103,8 +104,7 @@ export default async function handler(req, res) {
     if (now < 0) return res.status(400).json({ error: "negative_total", was, amount });
     if (now === 0) delete state.spend[date]; else state.spend[date] = now;
 
-    state.updatedAt = Date.now();
-    await redis(["SET", STATE_DOC, JSON.stringify(state)]);
+    await saveFor(auth.uid, state);
 
     const w = week();
     return res.status(200).json({

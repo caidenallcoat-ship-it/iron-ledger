@@ -5,7 +5,8 @@
  * Gated by the same LEDGER_KEY as the record, so nobody else can attach a
  * device to these notifications.
  */
-import { redis, authorise, SUBS_HASH } from "./_lib.js";
+import { redis, authorise } from "./_lib.js";
+import { subsDoc } from "./_users.js";
 
 
 /** Stable, short field name for a subscription endpoint. */
@@ -37,20 +38,20 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "bad_subscription" });
       }
       const field = await fieldFor(sub.endpoint);
-      await redis(["HSET", SUBS_HASH, field, JSON.stringify(sub)]);
-      const count = await redis(["HLEN", SUBS_HASH]);
+      await redis(["HSET", subsDoc(auth.uid), field, JSON.stringify(sub)]);
+      const count = await redis(["HLEN", subsDoc(auth.uid)]);
       return res.status(200).json({ ok: true, devices: count.result ?? null });
     }
 
     if (req.method === "DELETE") {
       const endpoint = body && body.endpoint;
       if (typeof endpoint !== "string") return res.status(400).json({ error: "bad_endpoint" });
-      await redis(["HDEL", SUBS_HASH, await fieldFor(endpoint)]);
+      await redis(["HDEL", subsDoc(auth.uid), await fieldFor(endpoint)]);
       return res.status(200).json({ ok: true });
     }
 
     if (req.method === "GET") {
-      const count = await redis(["HLEN", SUBS_HASH]);
+      const count = await redis(["HLEN", subsDoc(auth.uid)]);
       return res.status(200).json({ devices: count.result ?? 0 });
     }
 

@@ -9,7 +9,8 @@
  *
  * Same LEDGER_KEY as everything else, same lockout on repeated bad keys.
  */
-import { redis, authorise, loadState, localParts, STATE_DOC } from "./_lib.js";
+import { authorise, localParts } from "./_lib.js";
+import { loadFor, saveFor } from "./_users.js";
 
 const AREAS = ["house", "train", "eat", "money", "sleep", "people"];
 const MAX_PER_AREA = 40;
@@ -37,7 +38,7 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   try {
-    const state = await loadState();
+    const state = await loadFor(auth.uid);
     if (!state) return res.status(404).json({ error: "no_record_yet" });
 
     const monday = mondayOf(localParts().key);
@@ -96,8 +97,7 @@ export default async function handler(req, res) {
       added.push({ area, text });
     }
 
-    state.updatedAt = Date.now();
-    await redis(["SET", STATE_DOC, JSON.stringify(state)]);
+    await saveFor(auth.uid, state);
 
     return res.status(200).json({
       ok: true,

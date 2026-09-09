@@ -12,7 +12,8 @@
  * What it changes is when the app starts warning, and what it says on the
  * night itself.
  */
-import { redis, authorise, loadState, localParts, STATE_DOC, hasPass } from "./_lib.js";
+import { authorise, localParts, hasPass } from "./_lib.js";
+import { loadFor, saveFor } from "./_users.js";
 
 const HORIZON_DAYS = 14;
 
@@ -50,7 +51,7 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   try {
-    const state = await loadState();
+    const state = await loadFor(auth.uid);
     if (!state) return res.status(404).json({ error: "no_record_yet" });
     const today = localParts().key;
     const monday = mondayOf(today);
@@ -109,8 +110,7 @@ export default async function handler(req, res) {
       set.push({ date, what });
     }
 
-    state.updatedAt = Date.now();
-    await redis(["SET", STATE_DOC, JSON.stringify(state)]);
+    await saveFor(auth.uid, state);
 
     return res.status(200).json({
       ok: true,

@@ -12,10 +12,8 @@
  * rotating queue, so which session comes next is a fact about the record, not
  * something an automation should be able to assert.
  */
-import {
-  redis, authorise, loadState, localParts, STATE_DOC,
-  SESSIONS, nextSessionKey,
-} from "./_lib.js";
+import { authorise, localParts, SESSIONS, nextSessionKey } from "./_lib.js";
+import { loadFor, saveFor } from "./_users.js";
 
 function mondayOf(key) {
   const [y, m, d] = key.split("-").map(Number);
@@ -43,7 +41,7 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   try {
-    const state = await loadState();
+    const state = await loadFor(auth.uid);
     if (!state) return res.status(404).json({ error: "no_record_yet" });
     const today = localParts().key;
     const done = state.done || (state.done = {});
@@ -76,8 +74,7 @@ export default async function handler(req, res) {
       if (!done[date]) return res.status(404).json({ error: "nothing_logged", date });
       const was = done[date];
       delete done[date];
-      state.updatedAt = Date.now();
-      await redis(["SET", STATE_DOC, JSON.stringify(state)]);
+      await saveFor(auth.uid, state);
       return res.status(200).json({
         ok: true, removed: { date, session: was.key }, thisWeek: weekCount(done, today), target,
       });
@@ -108,8 +105,7 @@ export default async function handler(req, res) {
     if (note) rec.note = note;
     done[date] = rec;
 
-    state.updatedAt = Date.now();
-    await redis(["SET", STATE_DOC, JSON.stringify(state)]);
+    await saveFor(auth.uid, state);
 
     const n = weekCount(done, today);
     return res.status(200).json({

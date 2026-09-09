@@ -11,8 +11,9 @@
  * set. A manual run with the x-ledger-key header is also allowed, for testing.
  */
 import webpush from "web-push";
+import { listUsers, loadFor, subsDoc } from "./_users.js";
 import {
-  redis, sameSecret, storeConfigured, loadState, buildNudge, localParts, SUBS_HASH,
+  redis, sameSecret, storeConfigured, buildNudge, localParts,
 } from "./_lib.js";
 
 const LEDGER_KEY = process.env.LEDGER_KEY;
@@ -60,51 +61,61 @@ export default async function handler(req, res) {
   const force = "force" in (req.query || {});
 
   try {
-    const state = await loadState();
-    const wanted = nudgeHourFor(state);
-
-    // The DST guard, now against the hour this record actually wants. A
-    // manual run can skip it.
-    if (byCron && !force && now.hour !== wanted) {
-      return res.status(200).json({
-        skipped: "wrong_local_hour", localHour: now.hour, wanted,
-      });
-    }
-
-    const nudge = buildNudge(state, now.key);
-    if (!nudge) {
-      return res.status(200).json({ sent: 0, reason: "nothing_worth_saying", date: now.key });
-    }
-
-    const all = await redis(["HGETALL", SUBS_HASH]);
-    // Upstash returns HGETALL as a flat [field, value, field, value, ...].
-    const flat = all.result || [];
-    const subs = [];
-    for (let i = 0; i + 1 < flat.length; i += 2) {
-      try { subs.push({ field: flat[i], sub: JSON.parse(flat[i + 1]) }); } catch {}
-    }
-    if (!subs.length) {
-      return res.status(200).json({ sent: 0, reason: "no_devices", nudge });
+    /* One cron run, everybody's evening. Each person has their own training
+       time, so the hour is asked of each record rather than of the deploy —
+       two people training at seven and half eight are two different jobs that
+       happen to share a schedule. */
+    const people = await listUsers();
+    if (!people.length) {
+      return res.status(200).json({ sent: 0, reason: "no_users" });
     }
 
     webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-    const payload = JSON.stringify({ ...nudge, url: APP_URL });
 
-    let sent = 0;
-    const dead = [];
-    await Promise.all(subs.map(async ({ field, sub }) => {
-      try {
-        await webpush.sendNotification(sub, payload);
-        sent++;
-      } catch (err) {
-        // 404/410 mean the browser threw the subscription away — stop trying.
-        if (err && (err.statusCode === 404 || err.statusCode === 410)) dead.push(field);
+    const report = [];
+    let sentTotal = 0, prunedTotal = 0;
+
+    for (const person of people) {
+      const state = await loadFor(person.uid);
+      if (!state) { report.push({ name: person.name, skipped: "no_record" }); continue; }
+
+      const wanted = nudgeHourFor(state);
+      if (byCron && !force && now.hour !== wanted) {
+        report.push({ name: person.name, skipped: "wrong_local_hour", wanted });
+        continue;
       }
-    }));
 
-    if (dead.length) await redis(["HDEL", SUBS_HASH, ...dead]);
+      const nudge = buildNudge(state, now.key);
+      if (!nudge) { report.push({ name: person.name, skipped: "nothing_worth_saying" }); continue; }
 
-    return res.status(200).json({ sent, pruned: dead.length, nudge, date: now.key });
+      const all = await redis(["HGETALL", subsDoc(person.uid)]);
+      const flat = (all && all.result) || [];
+      const subs = [];
+      for (let i = 0; i + 1 < flat.length; i += 2) {
+        try { subs.push({ field: flat[i], sub: JSON.parse(flat[i + 1]) }); } catch {}
+      }
+      if (!subs.length) { report.push({ name: person.name, skipped: "no_devices", nudge }); continue; }
+
+      const payload = JSON.stringify({ ...nudge, url: APP_URL });
+      let sent = 0;
+      const dead = [];
+      await Promise.all(subs.map(async ({ field, sub }) => {
+        try { await webpush.sendNotification(sub, payload); sent++; }
+        catch (err) {
+          // 404/410 mean the browser threw the subscription away.
+          if (err && (err.statusCode === 404 || err.statusCode === 410)) dead.push(field);
+        }
+      }));
+      if (dead.length) await redis(["HDEL", subsDoc(person.uid), ...dead]);
+
+      sentTotal += sent;
+      prunedTotal += dead.length;
+      report.push({ name: person.name, sent, pruned: dead.length, nudge });
+    }
+
+    return res.status(200).json({
+      sent: sentTotal, pruned: prunedTotal, date: now.key, localHour: now.hour, people: report,
+    });
   } catch (err) {
     return res.status(502).json({ error: "notify_failed", detail: String(err.message || err) });
   }

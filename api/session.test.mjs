@@ -13,18 +13,38 @@ const ok = (name, cond, extra) => {
   else { fail++; console.log("  FAIL " + name + (extra ? "\n       " + extra : "")); }
 };
 
-// The record the endpoint reads and writes, held in memory.
-let record = null;
+// A stand-in Redis covering the commands the users layer needs too.
+const store = new Map();
+const hashes = new Map();
 globalThis.fetch = async (_url, init) => {
-  const [op, key, value] = JSON.parse(init.body);
+  const cmd = JSON.parse(init.body);
+  const [op, key, a, b] = cmd;
   let result = null;
-  if (op === "GET") result = key === "iron-ledger:state" ? (record && JSON.stringify(record)) : null;
-  else if (op === "SET") { record = JSON.parse(value); result = "OK"; }
-  else if (op === "INCR") result = 1;
-  else if (op === "DEL" || op === "EXPIRE") result = 1;
+  if (op === "GET") result = store.has(key) ? store.get(key) : null;
+  else if (op === "SET") { store.set(key, a); result = "OK"; }
+  else if (op === "DEL") { store.delete(key); hashes.delete(key); result = 1; }
+  else if (op === "HSET") {
+    if (!hashes.has(key)) hashes.set(key, new Map());
+    hashes.get(key).set(a, b); result = 1;
+  } else if (op === "HDEL") {
+    if (hashes.has(key)) for (const f of cmd.slice(2)) hashes.get(key).delete(f);
+    result = 1;
+  } else if (op === "HGETALL") {
+    const h = hashes.get(key);
+    result = h ? [...h.entries()].flat() : [];
+  } else result = 1;
   return { ok: true, json: async () => ({ result }) };
 };
 
+let OWNER_UID = null;
+
+const U = await import("./_users.js");
+OWNER_UID = await U.userForKey("k");
+const DOC = "iron-ledger:u:" + OWNER_UID;
+/* Read and write the owner's record straight out of the fake store, so
+   the assertions stay synchronous. */
+const read = () => JSON.parse(store.get(DOC));
+const seed = (rec) => store.set(DOC, JSON.stringify(rec));
 const handler = (await import("./session.js")).default;
 
 // Freeze "today" to a known Wednesday so the week maths is checkable.
@@ -45,7 +65,8 @@ const call = async (method, body) => {
 };
 
 const reset = (done = {}) => {
-  record = { start: "2026-09-07", done, skips: [], ticks: {}, target: 3, daily: {}, updatedAt: 1 };
+  if (!OWNER_UID) throw new Error('owner not resolved');
+  seed({ start: "2026-09-07", done, skips: [], ticks: {}, target: 3, daily: {}, updatedAt: 1 });
 };
 
 console.log("logging a session from outside the app");
@@ -54,8 +75,8 @@ let r = await call("POST", {});
 ok("a bare post logs today", r.status === 200 && r.body.ok === true, JSON.stringify(r));
 ok("it picks the first session in the queue", r.body.session === "A", r.body.session);
 ok("and reports the week", r.body.thisWeek === 1 && r.body.target === 3, JSON.stringify(r.body));
-ok("the record actually changed", Boolean(record.done[TODAY]), JSON.stringify(record.done));
-ok("it is marked as coming from the api", record.done[TODAY].via === "api");
+ok("the record actually changed", Boolean(read().done[TODAY]), JSON.stringify(read().done));
+ok("it is marked as coming from the api", read().done[TODAY].via === "api");
 
 console.log("");
 console.log("the queue is the record's business, not the caller's");
@@ -76,16 +97,16 @@ ok("a future date is refused", r.status === 400 && r.body.error === "date_in_the
 
 reset();
 r = await call("POST", { express: true, note: "  knackered, short one  " });
-ok("the short version is recorded as such", record.done[TODAY].express === true);
-ok("a note is trimmed and kept", record.done[TODAY].note === "knackered, short one", record.done[TODAY].note);
+ok("the short version is recorded as such", read().done[TODAY].express === true);
+ok("a note is trimmed and kept", read().done[TODAY].note === "knackered, short one", read().done[TODAY].note);
 r = await call("POST", { date: "2026-09-08" });
-ok("backfilling an earlier day works", r.status === 200 && Boolean(record.done["2026-09-08"]));
+ok("backfilling an earlier day works", r.status === 200 && Boolean(read().done["2026-09-08"]));
 
 console.log("");
 console.log("undo");
 reset({ [TODAY]: { key: "C", at: "x", express: false } });
 r = await call("DELETE", {});
-ok("delete removes it", r.status === 200 && !record.done[TODAY], JSON.stringify(r.body));
+ok("delete removes it", r.status === 200 && !read().done[TODAY], JSON.stringify(r.body));
 r = await call("DELETE", {});
 ok("deleting nothing is a 404, not a crash", r.status === 404);
 
@@ -95,7 +116,7 @@ reset({ "2026-09-07": { key: "A", at: "x", express: false } });
 r = await call("GET");
 ok("GET says what is next without logging it", r.body.session === "B" && r.body.loggedToday === false);
 ok("GET names the session", r.body.name === "Wind", r.body.name);
-ok("GET does not change the record", Object.keys(record.done).length === 1);
+ok("GET does not change the record", Object.keys(read().done).length === 1);
 
 Date.now = realNow;
 console.log(`\n${pass} passed, ${fail} failed`);

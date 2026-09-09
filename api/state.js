@@ -12,10 +12,8 @@
  * make it long and random. Anyone holding it can read and overwrite the record.
  */
 
-import {
-  redis, authorise,
-  STATE_DOC as DOC,
-} from "./_lib.js";
+import { authorise } from "./_lib.js";
+import { loadFor, saveFor, userInfo } from "./_users.js";
 
 
 export default async function handler(req, res) {
@@ -26,9 +24,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
-      const out = await redis(["GET", DOC]);
-      const raw = out && out.result;
-      return res.status(200).json(raw ? JSON.parse(raw) : null);
+      return res.status(200).json(await loadFor(auth.uid));
     }
 
     if (req.method === "PUT" || req.method === "POST") {
@@ -43,8 +39,9 @@ export default async function handler(req, res) {
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         return res.status(400).json({ error: "bad_body" });
       }
-      await redis(["SET", DOC, JSON.stringify(body)]);
-      return res.status(200).json({ ok: true });
+      await saveFor(auth.uid, body);
+      const who = await userInfo(auth.uid);
+      return res.status(200).json({ ok: true, name: who ? who.name : null });
     }
 
     res.setHeader("Allow", "GET, PUT");

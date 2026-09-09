@@ -102,9 +102,15 @@ export async function authorise(req) {
       message: "Set the LEDGER_KEY environment variable in Vercel and redeploy.",
     } };
   }
-  if (sameSecret(req.headers["x-ledger-key"], process.env.LEDGER_KEY)) {
+  const presented = req.headers["x-ledger-key"];
+  /* Any key that resolves to a person is a good key. The owner's LEDGER_KEY
+     still works and is simply the first of them. */
+  const { userForKey } = await import("./_users.js");
+  let uid = null;
+  try { uid = await userForKey(presented); } catch { uid = null; }
+  if (uid) {
     await clearFailures(req);
-    return { ok: true };
+    return { ok: true, uid };
   }
   if (await isLockedOut(req)) {
     return { ok: false, status: 429, body: { error: "too_many_attempts" } };
