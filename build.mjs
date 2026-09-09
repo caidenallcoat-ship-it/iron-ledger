@@ -83,3 +83,10 @@ if ("serviceWorker" in navigator) {
 
 await writeFile(OUT, out, "utf8");
 console.log(`${OUT} written — ${(out.length / 1024).toFixed(1)} KB`);
+
+/* The Scriptable widget is served from the app so it can be copied on the
+   phone that is going to run it. Copying a hundred lines out of GitHub on a
+   handset is the kind of small friction that stops a thing being set up. */
+const widget = await readFile("widget.js", "utf8");
+await writeFile("public/widget.js", widget, "utf8");
+console.log(`public/widget.js written — ${(widget.length / 1024).toFixed(1)} KB`);
