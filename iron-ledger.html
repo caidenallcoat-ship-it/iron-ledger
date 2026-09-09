@@ -49,11 +49,11 @@
 
   *{box-sizing:border-box}
   body{background:var(--ground);color:var(--ink);margin:0;
-    font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.55;
+    font-family:"Archivo","Helvetica Neue",Arial,sans-serif;font-size:15px;line-height:1.62;
     -webkit-font-smoothing:antialiased}
   .wrap{max-width:920px;margin:0 auto;
-    padding:calc(26px + env(safe-area-inset-top)) 20px calc(72px + env(safe-area-inset-bottom));
-    display:flex;flex-direction:column;gap:26px}
+    padding:calc(26px + env(safe-area-inset-top)) 22px calc(80px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:32px}
   /* Paint the status-bar strip in the app's own colour, above the sticky nav,
      so nothing scrolls up underneath the clock and the battery. */
   body::before{content:"";position:fixed;top:0;left:0;right:0;
@@ -73,7 +73,7 @@
 
   /* day clock */
   .clock{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
-  .slot{background:var(--surface);padding:10px 13px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+  .slot{background:var(--surface);padding:13px 15px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
   .slot-t{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;letter-spacing:.07em;
     color:var(--muted);font-variant-numeric:tabular-nums}
   .slot-l{font-size:13px;color:var(--ink2);line-height:1.35}
@@ -170,15 +170,15 @@
   .disc:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 
   .ring-panel{background:var(--surface);border:1px solid var(--line);border-top-width:3px}
-  .ring-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
-    flex-wrap:wrap;padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+  .ring-head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+    flex-wrap:wrap;padding:18px 22px 16px;border-bottom:1px solid var(--line)}
   .ring-head h3{font-size:19px;line-height:1.15}
   .ring-status{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;
     text-transform:uppercase;white-space:nowrap}
   .ring-status[data-s="behind"]{color:var(--miss)}
   .ring-status[data-s="clear"]{color:var(--done)}
   .ring-status[data-s="ok"]{color:var(--muted)}
-  .ring-note{padding:13px 16px;font-size:14px;color:var(--ink2);max-width:60ch}
+  .ring-note{padding:18px 22px;font-size:14.5px;line-height:1.65;color:var(--ink2);max-width:60ch}
   .ring-go{padding:0 16px 16px}
 
   /* Tall enough for the bottom disc's label, which sits 32px below it and was
@@ -216,13 +216,13 @@
   .verdict .eyebrow{color:inherit;opacity:.7}
   .v-line{font-family:"Archivo Black",Arial,sans-serif;font-size:clamp(21px,4vw,32px);
     line-height:1.16;letter-spacing:-.018em;margin:0}
-  .v-sub{margin:0;font-size:14.5px;opacity:.85;max-width:62ch}
+  .v-sub{margin:0;font-size:14.5px;line-height:1.65;opacity:.85;max-width:62ch}
   .v-sub b{opacity:1;font-weight:700}
 
   /* figures */
   .figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;
     background:var(--line);border:1px solid var(--line)}
-  .fig{background:var(--surface);padding:14px 15px 13px;display:flex;flex-direction:column;gap:3px}
+  .fig{background:var(--surface);padding:17px 17px 16px;display:flex;flex-direction:column;gap:5px}
   .fig .n{font-family:"Archivo Black",Arial,sans-serif;font-size:28px;line-height:1.05;
     font-variant-numeric:tabular-nums;letter-spacing:-.02em}
   .fig .n small{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;
@@ -234,14 +234,14 @@
 
   /* section shell */
   .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
-    flex-wrap:wrap;margin-bottom:11px}
+    flex-wrap:wrap;margin-bottom:14px}
   .sec-head h2{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;
     letter-spacing:.16em;text-transform:uppercase}
-  .sec-note{font-size:13px;color:var(--muted);margin:0;max-width:60ch}
+  .sec-note{font-size:13px;line-height:1.6;color:var(--muted);margin:0;max-width:60ch}
 
   /* session */
   .panel{background:var(--surface);border:1px solid var(--line)}
-  .sess-top{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;
+  .sess-top{padding:20px 22px 18px;border-bottom:1px solid var(--line);display:flex;
     justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
   .sess-title{font-size:clamp(19px,3vw,25px);line-height:1.12;letter-spacing:-.01em}
   .sess-sub{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.08em;
@@ -251,15 +251,15 @@
   .chip[data-v="done"]{background:var(--done-soft);color:var(--done)}
   .chip[data-v="rest"]{background:var(--surface2);color:var(--muted)}
 
-  .strip{padding:11px 20px;border-bottom:1px dashed var(--line);font-family:"IBM Plex Mono",monospace;
-    font-size:12.5px;color:var(--ink2);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .strip{padding:14px 22px;border-bottom:1px dashed var(--line);font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px;line-height:1.7;color:var(--ink2);display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
   .strip b{color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-size:10.5px;
     font-weight:600;white-space:nowrap}
 
   ul.lifts{list-style:none;margin:0;padding:0}
   ul.lifts > li{border-bottom:1px solid var(--line)}
   ul.lifts > li:last-child{border-bottom:0}
-  .lift{display:flex;align-items:center;gap:13px;padding:12px 20px;cursor:pointer;user-select:none}
+  .lift{display:flex;align-items:center;gap:14px;padding:15px 22px;cursor:pointer;user-select:none}
   .lift:hover{background:var(--surface2)}
   .lift:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
   .tick{width:21px;height:21px;flex:none;border:2px solid var(--line2);display:grid;place-items:center}
@@ -276,18 +276,18 @@
   .how:hover{border-color:var(--ink);color:var(--ink)}
   .how[aria-expanded="true"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
 
-  .cue{background:var(--cue-bg);border-top:1px solid var(--line);padding:14px 20px 16px;
-    display:flex;flex-direction:column;gap:9px}
+  .cue{background:var(--cue-bg);border-top:1px solid var(--line);padding:18px 22px 20px;
+    display:flex;flex-direction:column;gap:12px}
   .cue-row{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:baseline}
   .cue-k{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.11em;
     text-transform:uppercase;color:var(--muted)}
-  .cue-v{font-size:14px;color:var(--ink2);line-height:1.5;margin:0}
+  .cue-v{font-size:14px;color:var(--ink2);line-height:1.65;margin:0}
   .cue-v b{color:var(--ink);font-weight:600}
   .cue-row[data-fault="1"] .cue-k{color:var(--miss)}
   .cue-row[data-fault="1"] .cue-v{color:var(--ink)}
 
-  .actions{padding:16px 20px;border-top:1px solid var(--line);background:var(--surface2);
-    display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .actions{padding:18px 22px;border-top:1px solid var(--line);background:var(--surface2);
+    display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   .btn{font-size:14px;font-weight:600;padding:11px 19px;border:1px solid var(--line2);
     background:var(--surface);color:var(--ink)}
   .btn:hover{border-color:var(--ink)}
@@ -306,8 +306,8 @@
   .express-note{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--warn);
     letter-spacing:.1em;font-weight:600}
 
-  .excuse{padding:16px 20px 20px;border-top:2px solid var(--miss);background:var(--miss-soft);
-    display:flex;flex-direction:column;gap:12px}
+  .excuse{padding:20px 22px 22px;border-top:2px solid var(--miss);background:var(--miss-soft);
+    display:flex;flex-direction:column;gap:14px}
   .excuse-q{font-family:"Archivo Black",Arial,sans-serif;font-size:17px;margin:0;line-height:1.25}
   .excuse-opts{display:flex;gap:8px;flex-wrap:wrap}
   .excuse-opt{background:var(--surface);border:1px solid var(--line2);color:var(--ink);
@@ -418,8 +418,8 @@
   body.resting{padding-bottom:74px}
 
   /* load note */
-  .note-bar{padding:14px 20px;border-top:1px solid var(--line);background:var(--cue-bg);
-    display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+  .note-bar{padding:18px 22px;border-top:1px solid var(--line);background:var(--cue-bg);
+    display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
   .note-bar .field{flex:1;min-width:190px}
   .note-last{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);
     display:block;margin-top:4px}
@@ -455,8 +455,8 @@
   .step:disabled{opacity:.35;cursor:default}
 
   /* the house */
-  .house-verdict{padding:13px 20px;background:var(--surface2);border-bottom:1px solid var(--line);
-    font-size:14px;color:var(--ink2);display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+  .house-verdict{padding:16px 22px;background:var(--surface2);border-bottom:1px solid var(--line);
+    font-size:14px;line-height:1.65;color:var(--ink2);display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
   .house-verdict b{color:var(--ink);font-weight:600}
   .house-verdict[data-s="over"]{background:var(--miss-soft)}
   .house-verdict[data-s="ok"]{background:var(--done-soft)}
@@ -465,7 +465,7 @@
   ul.jobs > li:last-child{border-bottom:0}
   ul.jobs > li[data-s="over"]{box-shadow:inset 3px 0 0 var(--miss)}
   ul.jobs > li[data-s="due"]{box-shadow:inset 3px 0 0 var(--warn)}
-  .job{display:flex;align-items:center;gap:12px;padding:11px 20px;flex-wrap:wrap}
+  .job{display:flex;align-items:center;gap:13px;padding:15px 22px;flex-wrap:wrap}
   .job-n{font-weight:500;flex:1;min-width:120px}
   .job-when{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);
     font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -500,7 +500,7 @@
   .bar-fill{display:block;height:100%;background:var(--done)}
 
   /* punch card */
-  .box{background:var(--surface);border:1px solid var(--line);padding:18px 20px}
+  .box{background:var(--surface);border:1px solid var(--line);padding:20px 22px}
   .cal-scroll{overflow-x:auto;padding-bottom:6px}
   .cal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr) 8px;gap:4px;min-width:660px}
   .wkbar{display:block;width:100%;height:8px;margin-top:2px;background:transparent}
@@ -577,22 +577,22 @@
   @media (max-width:560px){
     .cue-row{grid-template-columns:1fr;gap:2px}
     .clock{grid-template-columns:repeat(2,1fr)}
-    .wrap{padding:calc(14px + env(safe-area-inset-top)) 14px calc(64px + env(safe-area-inset-bottom));gap:20px}
-    .secnav{margin:0 -14px;padding:0 14px}
-    .verdict{padding:18px 16px}
-    .sess-top,.strip,.actions,.excuse,.note-bar,.cue{padding-left:16px;padding-right:16px}
+    .wrap{padding:calc(16px + env(safe-area-inset-top)) 16px calc(72px + env(safe-area-inset-bottom));gap:26px}
+    .verdict{padding:22px 18px}
+    .sess-top,.strip,.actions,.excuse,.note-bar,.cue,.house-verdict,.ring-head,.ring-note{
+      padding-left:18px;padding-right:18px}
     /* Tick and name share the first line; reps and How fall to a second only
        when the name is long. Forcing the name to 100% made every exercise
        three lines tall. */
-    ul.lifts > li .lift{padding:11px 16px;gap:9px;flex-wrap:wrap;align-items:center}
+    ul.lifts > li .lift{padding:15px 18px;gap:12px;flex-wrap:wrap;align-items:center}
     .tick{order:1;flex:0 0 auto}
     .lift-n{order:2;flex:1 1 auto;min-width:0}
     .lift-d{order:3;flex:0 0 auto;margin-left:auto;font-size:15px;color:var(--ink)}
     .how{order:4;flex:0 0 auto}
-    .job{padding:11px 16px}
+    .job{padding:15px 18px}
     .job-n{flex:1 1 100%}
-    .box{padding:14px 16px}
-    ul.log li{grid-template-columns:1fr;gap:2px;padding:10px 15px}
+    .box{padding:18px}
+    ul.log li{grid-template-columns:1fr;gap:3px;padding:14px 18px}
     ul.log .d{order:1}
     .fig .n{font-size:24px}
   }
