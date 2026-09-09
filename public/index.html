@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T11:18:17.652Z";</script>
+<script>window.__BUILD__ = "2026-09-09T11:59:46.299Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -106,47 +106,6 @@
 
   /* section nav — sticky, scrolls sideways on a phone rather than wrapping
      into three rows and eating the screen */
-  .secnav{position:sticky;top:env(safe-area-inset-top);z-index:30;display:flex;gap:0;overflow-x:auto;
-    background:var(--ground);border-bottom:1px solid var(--line);
-    margin:0 -20px;padding:0 20px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  .secnav::-webkit-scrollbar{display:none}
-  .secnav a{flex:0 0 auto;font-family:"IBM Plex Mono",monospace;font-size:11px;
-    letter-spacing:.11em;text-transform:uppercase;color:var(--muted);text-decoration:none;
-    padding:12px 13px;border-bottom:2px solid transparent;white-space:nowrap}
-  .secnav a:hover{color:var(--ink)}
-  .secnav a[aria-current="true"]{color:var(--ink);border-bottom-color:var(--warn);font-weight:600}
-  .secnav[data-r="1"][data-l="0"]{
-    -webkit-mask-image:linear-gradient(to right,#000 82%,transparent 100%);
-            mask-image:linear-gradient(to right,#000 82%,transparent 100%)}
-  .secnav[data-r="1"][data-l="1"]{
-    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 82%,transparent 100%);
-            mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 82%,transparent 100%)}
-  .secnav[data-r="0"][data-l="1"]{
-    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 7%);
-            mask-image:linear-gradient(to right,transparent 0,#000 7%)}
-  section[id]{scroll-margin-top:calc(52px + env(safe-area-inset-top))}
-
-  /* collapsible reference sections */
-  details.fold > summary{list-style:none;cursor:pointer;display:flex;align-items:center;
-    justify-content:space-between;gap:12px}
-  details.fold > summary::-webkit-details-marker{display:none}
-  details.fold > summary::after{content:"Show";font-family:"IBM Plex Mono",monospace;
-    font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
-    border:1px solid var(--line2);padding:4px 9px;white-space:nowrap}
-  details.fold[open] > summary::after{content:"Hide"}
-  details.fold > summary h2{margin:0}
-  details.fold > .fold-body{margin-top:12px}
-
-
-  /* ---------- the ring ----------
-     Six life areas on a dial. Colour here is wayfinding only: the six area
-     hues are deliberately NOT the semantic green/amber/red, so a disc can
-     never look like it is reporting a state it isn't. State lives in the halo
-     and in the fill, using --done and --miss like everywhere else. */
-  :root{
-    --area-house:#4A6FA5; --area-train:#7A5EA8; --area-eat:#2E8B8B;
-    --area-money:#8C6A3F; --area-sleep:#5B5379; --area-people:#6E7C33;
-  }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --area-house:#7FA3D6; --area-train:#AE92DC; --area-eat:#5FBDBD;
@@ -209,7 +168,6 @@
   .ring-status[data-s="clear"]{color:var(--done)}
   .ring-status[data-s="ok"]{color:var(--muted)}
   .ring-note{padding:18px 22px;font-size:14.5px;line-height:1.65;color:var(--ink2);max-width:60ch}
-  .ring-go{padding:0 16px 16px}
 
   /* Tall enough for the bottom disc's label, which sits 32px below it and was
      spilling onto the panel underneath. */
@@ -507,15 +465,9 @@
     color:var(--ink2)}
   .rew-acts button:not(:disabled):hover{border-color:var(--ink);color:var(--ink)}
   .rew-acts button:disabled{opacity:.35;cursor:default}
-  .rew-taken{border-color:var(--warn)}
   .rew-open{margin-top:12px}
 
   /* the rewards section */
-  .rw-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
-    flex-wrap:wrap;margin-bottom:4px}
-  .rw-bank{font-family:"Archivo Black",Arial,sans-serif;font-size:15px;color:var(--warn);
-    font-variant-numeric:tabular-nums;white-space:nowrap}
-  .rw-bank[data-none="1"]{color:var(--muted)}
   .rw-list{display:grid;gap:1px;background:var(--line);border:1px solid var(--line)}
   .rw{background:var(--surface);padding:15px 17px;display:flex;gap:14px;
     align-items:flex-start;flex-wrap:wrap}
@@ -1204,8 +1156,6 @@ const CUES = {
 };
 
 /* ---------- programme ---------- */
-const SCHEDULE = {1:"A",2:"B",4:"C",5:"D",6:"E"};   // Mon Tue Thu Fri Sat
-const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
 const SESSIONS = {
   A:{name:"Swing", tag:"Hinge & push", day:"Monday", warm:"3 min rope · 20 halos · 10 hip hinges",
@@ -1343,7 +1293,6 @@ function sessionToday(){
   const e = state.done[TODAY_K];
   return (e && e.key) ? e.key : nextSessionKey();
 }
-function cyclePosition(){ return CYCLE.indexOf(nextSessionKey()) + 1; }
 
 let TODAY = new Date(), TODAY_K = key(TODAY);
 let NOW_H = TODAY.getHours() + TODAY.getMinutes()/60;
@@ -2603,58 +2552,6 @@ function applyAppearance(){
   paintThemeColor();
 }
 
-(function wireNav(){
-  const nav = document.getElementById("secnav");
-  if(!nav) return;
-  const links = [].slice.call(nav.querySelectorAll("a"));
-  const ids = links.map(function(a){ return a.getAttribute("href").slice(1); });
-  let lastActive = null;
-
-  /* Keep whichever tab is current actually on screen — the nav scrolls
-     sideways, and a highlight you can't see is worse than none. */
-  function reveal(a){
-    const nr = nav.getBoundingClientRect(), ar = a.getBoundingClientRect();
-    let delta = 0;
-    if(ar.left < nr.left + 10) delta = ar.left - nr.left - 10;
-    else if(ar.right > nr.right - 10) delta = ar.right - nr.right + 10;
-    if(!delta) return;
-    const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if(smooth && nav.scrollTo) nav.scrollTo({left: nav.scrollLeft + delta, behavior: "smooth"});
-    else nav.scrollLeft += delta;
-  }
-
-  function edges(){
-    nav.dataset.l = nav.scrollLeft > 4 ? "1" : "0";
-    nav.dataset.r = (nav.scrollLeft + nav.clientWidth) < (nav.scrollWidth - 4) ? "1" : "0";
-  }
-
-  function mark(){
-    /* The nav's own height varies with the phone's safe area, so measure it
-       rather than guessing at a pixel value. */
-    const probe = nav.getBoundingClientRect().bottom + 2;
-    let active = ids[0];
-    for(let i=0;i<ids.length;i++){
-      const el = document.getElementById(ids[i]);
-      if(!el) continue;
-      const r = el.getBoundingClientRect();
-      if(r.top <= probe) active = ids[i];
-      if(r.top <= probe && r.bottom > probe){ active = ids[i]; break; }
-    }
-    links.forEach(function(a){
-      a.setAttribute("aria-current", a.getAttribute("href") === "#"+active ? "true" : "false");
-    });
-    if(active !== lastActive){
-      lastActive = active;
-      const cur = links.filter(function(a){ return a.getAttribute("href") === "#"+active; })[0];
-      if(cur) reveal(cur);
-    }
-    edges();
-  }
-  addEventListener("scroll", mark, {passive:true});
-  addEventListener("resize", mark);
-  nav.addEventListener("scroll", edges, {passive:true});
-  mark();
-})();
 
 /* Skipping the gate used to be a one-way door: no key, no way to ask for it
    again short of clearing the site. This is the way back. */
@@ -2999,15 +2896,19 @@ function renderLedger(){
     return;
   }
   const max = tally[0].n, total = tally.reduce(function(a,b){ return a+b.n; },0);
+  /* The reason went in as markup. Today it can only ever be one of the fixed
+     excuses, but the record is fetched from a server and merged into state
+     before it is drawn, so anything that reached the record would run here.
+     It is the only text in the app that wasn't escaped. */
   host.innerHTML = '<div class="lrows">'+tally.map(function(t){
-      return '<div class="lrow"><span class="lrow-n">'+t.reason
-        +' <span class="lrow-last">last '+parseKey(t.last).toLocaleDateString(undefined,{day:"numeric",month:"short"})+'</span></span>'
+      return '<div class="lrow"><span class="lrow-n">'+esc(t.reason)
+        +' <span class="lrow-last">'+(t.last ? 'last '+parseKey(t.last).toLocaleDateString(undefined,{day:"numeric",month:"short"}) : 'no date')+'</span></span>'
         +'<span class="lrow-bar" style="width:'+Math.max(4, Math.round(t.n/max*120))+'px"></span>'
         +'<span class="lrow-c">'+t.n+'</span></div>';
     }).join("")+'</div>'
     +'<p class="verdict-note"><b>'+total+' skipped session'+(total===1?"":"s")+'</b><br>'
     +'At five sessions a week that\'s '+(total/5).toFixed(1)+' weeks of training you\'ve talked yourself out of. '
-    +'“'+tally[0].reason+'” is your favourite — decide now what you\'ll do the next time it turns up at half six.</p>';
+    +'“'+esc(tally[0].reason)+'” is your favourite — decide now what you\'ll do the next time it turns up at half six.</p>';
 }
 
 function jobFormHTML(c){
@@ -3199,16 +3100,25 @@ function renderSleep(){
 function renderMoney(){
   const host = document.getElementById("money-panel");
   if(!host) return;
-  const cap = areaCfg().money.cap, spent = spendThisWeek();
-  const pct = cap > 0 ? Math.min(100, Math.round(spent / cap * 100)) : 0;
-  const over = spent > cap;
-  const left = Math.round((cap - spent) * 100) / 100;
+  /* Two numbers, and the headline is the honest one. An earned off-budget day
+     takes the spending out of the cap, never out of the total — the same rule
+     the week follows, where a rest day lowers the bar without filling in the
+     count. Showing 0 spent after an 85 quid day would be the app hiding your
+     own money from you, which is worse than the guilt it removed. */
+  const cap = areaCfg().money.cap;
+  const counted = spendThisWeek(), excused = spendExcusedThisWeek();
+  const spent = Math.round((counted + excused) * 100) / 100;
+  const pct = cap > 0 ? Math.min(100, Math.round(counted / cap * 100)) : 0;
+  const over = counted > cap;
+  const left = Math.round((cap - counted) * 100) / 100;
   const daysLeft = 7 - ((TODAY.getDay() + 6) % 7);
   const perDay = Math.round(left / Math.max(1, daysLeft) * 100) / 100;
 
   host.innerHTML =
     '<div class="sess-top"><div><h3 class="sess-title">' + money(spent) + '</h3>'
-      + '<p class="sess-sub">of ' + money(cap) + ' this week</p></div>'
+      + '<p class="sess-sub">' + (excused
+          ? money(excused) + ' of it off-budget, earned — ' + money(counted) + ' of ' + money(cap) + ' counted'
+          : 'of ' + money(cap) + ' this week') + '</p></div>'
       + '<span class="chip" data-v="' + (over ? "" : "done") + '">'
       + (over ? money(spent - cap) + " over" : money(left) + " left") + '</span></div>'
     + '<div class="strip"><b>Week</b><span>'
@@ -3423,13 +3333,18 @@ const AREAS = [
   { id:"money", name:"Money", label:"Money", colour:"--area-money", target:"#s-money",
     icon:"M12 4H8.5A2.5 2.5 0 0 0 6 6.5c0 3 2 3.5 2 6.5 0 1-.5 2-1.5 2.5H14M6 10h5",
     read:function(){
-      const cap = areaCfg().money.cap, spent = spendThisWeek();
-      const pct = cap > 0 ? Math.min(100, Math.round(spent / cap * 100)) : 0;
-      const over = spent > cap;
+      /* Same split as the panel: the cap ignores an earned off-budget day,
+         the note never does. A dial reading "£100 left" the day after you
+         spent £85 would be the app keeping your own money from you. */
+      const cap = areaCfg().money.cap;
+      const counted = spendThisWeek(), excused = spendExcusedThisWeek();
+      const pct = cap > 0 ? Math.min(100, Math.round(counted / cap * 100)) : 0;
+      const over = counted > cap;
       return { pct:pct, state: over ? "behind" : (pct >= 80 ? "ok" : "clear"),
-        status: over ? money(spent - cap) + " over" : money(cap - spent) + " left",
-        note: over ? "You're " + money(spent - cap) + " over the " + money(cap) + " cap with the week not finished."
-          : money(spent) + " of " + money(cap) + " spent." };
+        status: over ? money(counted - cap) + " over" : money(cap - counted) + " left",
+        note: (over ? "You're " + money(counted - cap) + " over the " + money(cap) + " cap with the week not finished."
+                    : money(counted) + " of " + money(cap) + " spent.")
+          + (excused ? " " + money(excused) + " more went on an off-budget day you earned, which isn't counted." : "") };
     }},
   { id:"sleep", name:"Sleep", label:"Sleep", colour:"--area-sleep", target:"#s-sleep",
     icon:"M15.5 11.5A6 6 0 0 1 8 4a6.5 6.5 0 1 0 7.5 7.5z",
