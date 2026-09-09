@@ -122,6 +122,23 @@ ok("an empty array is not a pass",
   /Session [A-E]/.test(buildNudge(base(hist(20, 1, 3), { passes: { [TODAY]: [] } }), TODAY).body));
 
 console.log("");
+console.log("an evening off the ledger");
+const noisy = base(hist(20, 1, 3), {
+  chores: [{ id: "b", name: "Bins", every: 7, last: "2026-08-01" }],
+});
+ok("that evening would normally say plenty", buildNudge(noisy, TODAY) !== null);
+ok("bought quiet, it says nothing at all",
+  buildNudge({ ...noisy, passes: { [TODAY]: ["quiet"] } }, TODAY) === null,
+  JSON.stringify(buildNudge({ ...noisy, passes: { [TODAY]: ["quiet"] } }, TODAY)));
+ok("quiet silences the jobs too, not just the session",
+  buildNudge({ ...noisy, passes: { [TODAY]: ["quiet"] } }, TODAY) === null);
+// Quiet is not a rest day: it buys silence, not the session.
+const quietWeek = buildNudge(
+  { ...base(oneSession, { target: 2, passes: { "2026-09-07": ["quiet"] } }) }, TODAY);
+ok("a quiet evening does not lower what the week asks for", quietWeek !== null,
+  JSON.stringify(quietWeek));
+
+console.log("");
 console.log("health: reading a bedtime");
 ok('"23:12" is 23.2', Math.abs(bedHour("23:12") - 23.2) < 0.01, String(bedHour("23:12")));
 ok('"01:30" is 1.5', bedHour("01:30") === 1.5, String(bedHour("01:30")));

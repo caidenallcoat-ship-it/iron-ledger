@@ -523,6 +523,14 @@
     font-size:10.5px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
   .rw-drop:hover{color:var(--miss)}
   .rw-add{border:1px solid var(--line);border-top:0;background:var(--surface2);padding:15px 17px}
+  .rw-shelf{display:flex;flex-wrap:wrap;gap:8px}
+  .rw-idea{display:flex;align-items:baseline;gap:8px;padding:10px 13px;min-height:44px;
+    background:var(--surface);border:1px solid var(--line2);text-align:left}
+  .rw-idea:hover{border-color:var(--ink)}
+  .rw-idea-n{font-family:"Archivo",sans-serif;font-size:13.5px;color:var(--ink2)}
+  .rw-idea:hover .rw-idea-n{color:var(--ink)}
+  .rw-idea-c{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);white-space:nowrap}
   .rw-add .field{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
   .rw-add input[type=text]{flex:1;min-width:170px}
   .rw-add input[type=number]{width:72px}
@@ -1729,7 +1737,29 @@ const REWARDS = [
   { id:"late",  name:"A late night",         area:"sleep", cost:1, day:"late",
     what:"Tonight\u2019s bedtime doesn\u2019t count against you. Tomorrow\u2019s session still does." },
   { id:"spend", name:"Something off-budget", area:"money", cost:2, day:"spend",
-    what:"Today\u2019s spending doesn\u2019t count toward the weekly cap. One day of it, not a week." }
+    what:"Today\u2019s spending doesn\u2019t count toward the weekly cap. One day of it, not a week." },
+  { id:"quiet", name:"An evening off the ledger", area:"all", cost:1, day:"quiet",
+    what:"No six o\u2019clock notification and no list of what you owe. It doesn\u2019t excuse the session \u2014 buy a rest day for that \u2014 it just stops talking for one evening. The only reward an app like this can actually hand you is a night off from itself." }
+];
+/* Suggestions, not entries. They exist until you tap one, and then they are
+   yours to keep, rename or drop. The good ones share a shape: something you
+   would feel faintly guilty taking for no reason, named specifically enough
+   that you can picture it. "Something nice" is not a reward. */
+const IDEAS = [
+  { name:"The good takeaway", cost:1, what:"Not the cheap one you talk yourself into. The one you actually want." },
+  { name:"A morning with no alarm", cost:1, what:"Wake up when you wake up. Nothing downstairs can\u2019t wait another hour." },
+  { name:"A film, the whole way through", cost:1, what:"Phone in another room. Two hours that aren\u2019t split in half." },
+  { name:"A proper coffee out", cost:1, what:"Somewhere that isn\u2019t your kitchen. Sitting down, not to take away." },
+  { name:"A long bath and nothing after it", cost:1, what:"Hot, and for as long as you like. Straight to bed after." },
+  { name:"A meal out", cost:2, what:"Somewhere you\u2019d normally decide was a bit much for a Tuesday." },
+  { name:"A sports massage", cost:2, what:"Actual recovery. After eight weeks of hinging, your hips will have earned it." },
+  { name:"Flat-soled training shoes", cost:2, what:"Your squats get better the day they arrive. A reward that pays you back." },
+  { name:"The thing in your basket", cost:2, what:"The one that\u2019s sat there a month while you decided you didn\u2019t need it." },
+  { name:"A night out, uncounted", cost:2, what:"It doesn\u2019t go in the ledger and nothing is said about it afterwards." },
+  { name:"The next bell up", cost:3, what:"The most honest reward here. You earned it by outgrowing the last one, and it makes every session after it harder." },
+  { name:"A whole Saturday off", cost:3, what:"No jobs, no training, no ledger. It stays shut until Sunday." },
+  { name:"A day out somewhere", cost:3, what:"Far enough that it takes a train and the whole day goes on it." },
+  { name:"A weekend away", cost:3, what:"Three finished weeks buys two days somewhere else. It should cost that much." }
 ];
 function customRewards(){ return state.rewards || (state.rewards = []); }
 function allRewards(){ return REWARDS.concat(customRewards()); }
@@ -1801,7 +1831,7 @@ function unclaim(i){
   save(); renderAll();
   return true;
 }
-function addReward(name, cost){
+function addReward(name, cost, what){
   name = String(name || "").trim().slice(0, 48);
   cost = Math.max(1, Math.min(PASS_MAX_COST, Math.round(Number(cost) || 1)));
   if(!name) return false;
@@ -1809,7 +1839,7 @@ function addReward(name, cost){
   if(list.length >= 12) return false;
   if(allRewards().some(function(r){ return r.name.toLowerCase() === name.toLowerCase(); })) return false;
   list.push({ id:"c-" + Math.random().toString(36).slice(2, 8), name:name, cost:cost, area:"own",
-              what:"Yours. Nothing in the app changes \u2014 you just earned it." });
+              what: String(what || "").trim() || "Yours. Nothing in the app changes \u2014 you just earned it, and you know whether you did." });
   save(); renderAll();
   return true;
 }
@@ -2233,6 +2263,7 @@ function areaColour(a){
   return found ? "var(" + found.colour + ")" : "var(--ink2)";
 }
 function areaLabel(a){
+  if(a === "all") return "The lot";
   const found = AREAS.filter(function(x){ return x.id === a; })[0];
   return found ? found.label : "Yours";
 }
@@ -2327,6 +2358,21 @@ function renderRewardsTab(){
       + '</div></div>';
   }).join("") + '</div>';
 
+  /* Ideas you haven't taken yet. They drop off the shelf as they're added,
+     so it empties as the list becomes yours. */
+  const taken = allRewards().map(function(r){ return r.name.toLowerCase(); });
+  const shelf = IDEAS.filter(function(i){ return taken.indexOf(i.name.toLowerCase()) < 0; });
+  if(shelf.length && customRewards().length < 12){
+    html += '<div class="rw-add"><p class="rew-note" style="margin:0 0 11px">'
+      + 'Ideas. Tap to put one on your list \u2014 then rename it, reprice it or drop it. '
+      + 'A reward works when it\u2019s something you\u2019d otherwise talk yourself out of.</p>'
+      + '<div class="rw-shelf">' + shelf.map(function(i, n){
+          return '<button class="rw-idea" type="button" data-idea="' + n + '">'
+            + '<span class="rw-idea-n">' + esc(i.name) + '</span>'
+            + '<span class="rw-idea-c">' + plural(i.cost, "day") + '</span></button>';
+        }).join("") + '</div></div>';
+  }
+
   html +=
     '<div class="rw-add">'
       + '<p class="rew-note" style="margin:0 0 10px">Add your own. The app can\u2019t enforce these \u2014 it just '
@@ -2353,6 +2399,14 @@ function renderRewardsTab(){
 
   body.querySelectorAll("[data-claim]").forEach(function(b){
     b.addEventListener("click", function(){ if(claim(b.dataset.claim)) openRewards(); });
+  });
+  body.querySelectorAll("[data-idea]").forEach(function(b){
+    b.addEventListener("click", function(){
+      const taken2 = allRewards().map(function(r){ return r.name.toLowerCase(); });
+      const shelf2 = IDEAS.filter(function(i){ return taken2.indexOf(i.name.toLowerCase()) < 0; });
+      const i = shelf2[Number(b.dataset.idea)];
+      if(i && addReward(i.name, i.cost, i.what)) renderRewardsTab();
+    });
   });
   body.querySelectorAll("[data-drop]").forEach(function(b){
     b.addEventListener("click", function(){ removeReward(b.dataset.drop); renderRewardsTab(); });

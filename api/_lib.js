@@ -322,6 +322,10 @@ export function buildNudge(state, todayKey) {
   /* A rest day you earned and chose is the one evening this app has nothing
      to say about training. Anything else outstanding still gets its line —
      the day off was from the session, not from the bins. */
+  /* An evening bought off the ledger: the app says nothing at all, including
+     about the bins. That is the whole product. */
+  if (hasPass(passes, todayKey, "quiet")) return null;
+
   if (hasPass(passes, todayKey, "rest")) {
     return jobLine
       ? { title: T, body: `Rest day, earned.${jobLine}` }
