@@ -44,7 +44,7 @@ export default async function handler(req, res) {
   try {
     const state = await loadFor(auth.uid);
     if (!state) return res.status(404).json({ error: "no_record_yet" });
-    const today = localParts().key;
+    const { key: today, hour } = localParts();
     const done = state.done || (state.done = {});
     const target = Number(state.target) >= 1 && Number(state.target) <= 7 ? Number(state.target) : 3;
 
@@ -53,10 +53,11 @@ export default async function handler(req, res) {
       const key = rec ? rec.key : nextSessionKey(done);
       /* owed / why / line are for the phone lock (SHORTCUTS.md): whether
          tonight still counts, as a plain word a Shortcut can compare. */
-      const t = tonight(state, today);
+      const t = tonight(state, today, hour);
       return res.status(200).json({
         owed: t.owed,
         why: t.why,
+        lock: t.lock,
         line: t.line,
         date: today,
         loggedToday: Boolean(rec),

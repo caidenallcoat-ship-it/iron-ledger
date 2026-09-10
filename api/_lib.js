@@ -242,8 +242,15 @@ export function slotText(state) {
  *   spacing   two or more days running, and the week still fits without tonight
  * An evening bought off the ledger ("quiet") is deliberately NOT here: it
  * silences the app, it doesn't excuse the session.
+ *
+ * `lock` is "on" only while it's owed AND it's evening: from when you're home
+ * (`homeBy`, else 18:00) to the 22:00 hard stop. Owed is true all day, and a
+ * gate that shut Instagram at lunch for a session due at half seven would be
+ * switched off by the second day. After the hard stop the session can't
+ * happen, so holding the phone hostage past it is punishment, not a nudge.
  */
-export function tonight(state, todayKey) {
+const LOCK_UNTIL = 22;
+export function tonight(state, todayKey, hour) {
   const done = (state && state.done) || {};
   const passes = (state && state.passes) || {};
   const busy = (state && state.busy) || {};
@@ -284,7 +291,9 @@ export function tonight(state, todayKey) {
     week_met: `Week's done — ${week.replace(" this week", "")}.`,
     spacing: `Two days running and the week fits without tonight. ${week}.`,
   }[why];
-  return { owed: why === "owed", why, line, session: sk, thisWeek: weekDone, target };
+  const from = Number(state && state.homeBy) >= 12 && Number(state.homeBy) < LOCK_UNTIL ? Number(state.homeBy) : 18;
+  const lock = why === "owed" && Number.isFinite(hour) && hour >= from && hour < LOCK_UNTIL ? "on" : "off";
+  return { owed: why === "owed", why, line, lock, lockFrom: from, session: sk, thisWeek: weekDone, target };
 }
 
 export function buildNudge(state, todayKey) {

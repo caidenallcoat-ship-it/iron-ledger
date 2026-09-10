@@ -286,6 +286,32 @@ An "evening off the ledger" reward does **not** lift it — that buys silence,
 not the session. `line` is a ready-made sentence for an alert, e.g.
 *"Session A — Lower body & hinge isn't done. 1 of 3 this week."*
 
+`lock` is `on` only while it's owed **and** it's evening — from when you're
+home (the time you gave the app, else 18:00) until the 22:00 hard stop.
+`why` is owed all day; `lock` is what a gate should read.
+
+### The free way: Shortcut 13 — "Iron Ledger Gate"
+
+No app to install. Shortcuts can't stop an app opening, but it can throw you
+straight back out of it, every time, which amounts to the same thing.
+
+1. **Get Contents of URL** — `https://iron-ledger-cade10.vercel.app/api/session`,
+   method GET, header `x-ledger-key` = your key.
+2. **Get Dictionary Value** — key `lock`.
+3. **If** Dictionary Value **is** `on`:
+   - **Go to Home Screen**.
+   - **Get Dictionary Value** `line` from Contents of URL → **Show Notification**.
+4. **End If.**
+
+Then Automation → **App** → *Is Opened* → pick TikTok, Instagram, YouTube,
+your games → **Run Immediately**, *Notify When Run* off → Run Shortcut
+*Iron Ledger Gate*.
+
+The app flashes up for about a second while the ledger answers, then you're
+on the home screen. Log the session (or spend a rest day) and it stops
+happening — nothing to unlock. No signal means no answer, and it lets you
+in rather than locking you out of your own phone.
+
 ### In Jomo, once
 
 Make a template called **Until I've trained** that blocks Games and Social

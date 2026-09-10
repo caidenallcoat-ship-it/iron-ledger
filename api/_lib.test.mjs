@@ -246,6 +246,15 @@ const booked = { [day(-1)]: 1, [day(-2)]: 1, [day(-3)]: 1, [day(-4)]: 1 };
 ok("two running with no room left: owed",
   tonight(base({ [day(1)]: { key: "A" }, [day(2)]: { key: "B" } }, { busy: booked }), TODAY).why === "owed");
 
+ok("owed at lunch is not locked", tonight(base({}), TODAY, 13).lock === "off");
+ok("owed at 18:00 is locked", tonight(base({}), TODAY, 18).lock === "on");
+ok("owed at 21:00 is still locked", tonight(base({}), TODAY, 21).lock === "on");
+ok("past the 22:00 hard stop it lets go", tonight(base({}), TODAY, 22).lock === "off");
+ok("home by 17:00 locks from 17:00", tonight(base({}, { homeBy: 17 }), TODAY, 17).lock === "on");
+ok("trained is never locked, whatever the hour",
+  tonight(base({ [TODAY]: { key: "A" } }), TODAY, 19).lock === "off");
+ok("no hour given is never locked", tonight(base({}), TODAY).lock === "off");
+
 console.log("");
 console.log("day one names the right time");
 const { slotText } = await import("./_lib.js");
