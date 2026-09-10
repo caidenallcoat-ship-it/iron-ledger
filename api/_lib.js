@@ -238,6 +238,9 @@ export function buildNudge(state, todayKey) {
   const ticks = state.ticks || {};
   const target = Number(state.target) >= 1 && Number(state.target) <= 7 ? Number(state.target) : 3;
   const start = state.start || todayKey;
+  /* Same switch as tracks() in the app: an area turned off is never the line
+     in the notification. Unset means everything, as it always was. */
+  const tracks = (id) => id === "train" || !Array.isArray(state.tracking) || state.tracking.includes(id);
 
   const dow = dowOf(todayKey);
   const sk = done[todayKey] && done[todayKey].key ? done[todayKey].key : nextSessionKey(done);
@@ -286,7 +289,7 @@ export function buildNudge(state, todayKey) {
      during setup breaks ties. */
   const candidates = [];
 
-  if (Array.isArray(state.chores)) {
+  if (tracks("house") && Array.isArray(state.chores)) {
     let worst = null, behind = 0;
     /* Same rule as clockFrom() in the app: a never-logged job starts its clock
        the day it went on the list, not infinitely in the past. This line used
@@ -307,7 +310,7 @@ export function buildNudge(state, todayKey) {
     }
   }
 
-  if (Array.isArray(state.people)) {
+  if (tracks("people") && Array.isArray(state.people)) {
     let worst = null;
     for (const p of state.people) {
       const since = daysBetween(p.last || p.added || start, todayKey);
@@ -330,7 +333,7 @@ export function buildNudge(state, todayKey) {
   }
 
   const cap = state.areas && state.areas.money ? Number(state.areas.money.cap) : 0;
-  if (cap > 0 && state.spend) {
+  if (tracks("money") && cap > 0 && state.spend) {
     let spent = 0;
     for (let i = 0; i < 7; i++) spent += Number(state.spend[addDays(monday, i)]) || 0;
     if (spent > cap) {
@@ -352,9 +355,9 @@ export function buildNudge(state, todayKey) {
     }
     const eatT = dailyCfg.eat ? dailyCfg.eat.target : 5;
     const slpT = dailyCfg.sleep ? dailyCfg.sleep.target : 5;
-    if (ate < eatT) candidates.push({ area: "lean", severity: 10 + (eatT - ate) * 3,
+    if (tracks("eat") && ate < eatT) candidates.push({ area: "lean", severity: 10 + (eatT - ate) * 3,
       line: `Eating is ${ate} of ${eatT} with ${plural(daysLeft, "day")} left.` });
-    if (slept < slpT) candidates.push({ area: "strong", severity: 10 + (slpT - slept) * 3,
+    if (tracks("sleep") && slept < slpT) candidates.push({ area: "strong", severity: 10 + (slpT - slept) * 3,
       line: `In bed on time ${slept} of ${slpT} nights — that's the bit that decides whether the training does anything.` });
   }
 
@@ -362,6 +365,7 @@ export function buildNudge(state, todayKey) {
   if (state.weekly && typeof state.weekly === "object") {
     let open = 0, worstCarried = null;
     for (const a of Object.keys(state.weekly)) {
+      if (!tracks(a)) continue;
       for (const t of state.weekly[a] || []) {
         if (t.done) continue;
         open++;

@@ -78,6 +78,11 @@ now, so nothing may hardcode one person's life:
 - Kit comes from `state.kit` and `state.bells`. No board means floor push-ups,
   no rope means marching; one bell means progression by reps, not load.
 - An unanswered question must leave behaviour exactly as it was.
+- Areas can be switched off (`state.tracking`, a list of the optional ones
+  that are ON; unset means all six). Training can't be. Anything that reports
+  on an area — the ring, the weekly review, the figures, the rewards list,
+  `buildNudge` — must check `tracks(id)` (the server has its own `tracks`).
+  Switching off hides; it never deletes what was logged.
 
 ## Tone
 

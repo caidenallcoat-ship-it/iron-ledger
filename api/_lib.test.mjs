@@ -201,6 +201,28 @@ const known = buildNudge(base({}, { start: day(30),
 ok("someone logged still gets the plain line", /haven't spoken to Mum in 2 weeks/.test(known.body), known.body);
 
 console.log("");
+console.log("an area switched off is never the line");
+const lateJobs = [{ id: "b", name: "Bin emptied", every: 7, last: day(20) }];
+const withHouse = buildNudge(base({}, { start: day(30), chores: lateJobs }), TODAY);
+ok("with the house tracked, the late bin is the line", /Bin emptied/.test(withHouse.body), withHouse.body);
+const noHouse = buildNudge(base({}, { start: day(30), chores: lateJobs, tracking: ["eat"] }), TODAY);
+ok("with the house switched off, it isn't", !/Bin emptied/.test(noHouse.body), noHouse.body);
+const noPeople = buildNudge(base({}, { start: day(20), tracking: ["house"],
+  people: [{ id: "p", name: "Mum", every: 14, last: day(20) }] }), TODAY);
+ok("people switched off stay quiet", !/Mum/.test(noPeople.body), noPeople.body);
+const noMoney = buildNudge(base({}, { start: day(30), tracking: [],
+  areas: { money: { cap: 50 } }, spend: { [TODAY]: 200 } }), TODAY);
+ok("money switched off says nothing about the cap", !/spending cap/.test(noMoney.body), noMoney.body);
+const hiddenTask = buildNudge(base({}, { start: day(30), tracking: [],
+  weekly: { house: [{ id: "t", text: "Hoover the stairs", done: false, carried: 2 }] } }), TODAY);
+ok("a task in a switched-off area isn't raised", !/Hoover the stairs/.test(hiddenTask.body), hiddenTask.body);
+const trainTask = buildNudge(base({}, { start: day(30), tracking: [],
+  weekly: { train: [{ id: "t", text: "Order a 12kg bell", done: false, carried: 1 }] } }), TODAY);
+ok("training tasks are raised whatever is switched off", /Order a 12kg bell/.test(trainTask.body), trainTask.body);
+const unset = buildNudge(base({}, { start: day(30), chores: lateJobs, tracking: null }), TODAY);
+ok("unset still means everything", /Bin emptied/.test(unset.body), unset.body);
+
+console.log("");
 console.log("day one names the right time");
 const { slotText } = await import("./_lib.js");
 ok("a 17:30 slot reads as 17:30", slotText({ slot: 17.5 }) === "17:30");

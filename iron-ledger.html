@@ -895,6 +895,7 @@
     <p class="faults" id="faults" hidden></p>
     <div class="aboutyou" id="aboutyou" hidden></div>
     <div class="reweigh" id="reweigh" hidden></div>
+    <div class="reweigh" id="trackask" hidden></div>
     <div class="mates" id="mates" hidden></div>
 
     <div class="rank" id="rank"></div>
@@ -1022,6 +1023,11 @@
         <div class="eyebrow" style="margin-bottom:8px">What you are after</div>
         <div class="setup-opts" id="goal-opts"></div>
         <p class="sec-note" id="goal-note" style="margin-top:8px"></p>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">What you track</div>
+        <div class="setup-opts" id="track-opts"></div>
+        <p class="sec-note" id="track-note" style="margin-top:8px"></p>
       </div>
       <div>
         <div class="eyebrow" style="margin-bottom:8px">Scheme</div>
@@ -2916,13 +2922,128 @@ function renderAboutYou(){
   });
 }
 
+/* Asked a few days in, once, and only if something has sat untouched —
+   that's the point where it's a fact about how you use it rather than a
+   guess. Pre-set from what you've actually used, and from the goal you gave:
+   someone after losing weight keeps Eating on even if they haven't started
+   it, because that's the half the training can't do. */
+let trackDraft = null;
+function trackAskDue(){
+  if(Array.isArray(state.tracking) || !state.onboarded) return false;
+  if(daysBetween(state.start, TODAY_K) < 3) return false;
+  return untouchedAreas().length > 0;
+}
+function renderTrackAsk(){
+  const host = document.getElementById("trackask");
+  if(!host) return;
+  host.hidden = !trackAskDue();
+  if(host.hidden){ trackDraft = null; return; }
+  const idle = untouchedAreas();
+  const keepEat = state.goal === "lean" && idle.indexOf("eat") > -1;
+  const keepHouse = state.goal === "order" && idle.indexOf("house") > -1;
+  if(!trackDraft){
+    trackDraft = TRACK_OPTIONAL.filter(function(id){
+      return idle.indexOf(id) < 0 || (id === "eat" && keepEat) || (id === "house" && keepHouse);
+    });
+  }
+  const days = daysBetween(state.start, TODAY_K);
+  host.innerHTML =
+    '<h4>' + (idle.length === 1 ? "One part of this you haven\u2019t used" : idle.length + " parts of this you haven\u2019t used") + '</h4>'
+    + '<p><b>' + esc(andList(idle.map(areaLabel))) + '</b> ' + (idle.length === 1 ? "hasn\u2019t" : "haven\u2019t")
+      + ' had anything logged in the ' + plural(days, "day") + ' since you started. '
+      + 'Switch off what you don\u2019t want and it leaves the ring, the weekly review and the evening notification. '
+      + 'Nothing is deleted, and it can all go back on in Settings. Training can\u2019t be switched off.'
+      + (keepEat ? ' <b>Eating is left on</b> because you said you\u2019re after losing weight \u2014 that\u2019s the half of it the training can\u2019t do.' : '')
+      + (keepHouse ? ' <b>The House is left on</b> because sorting your life out is what you said you were here for.' : '')
+    + '</p>'
+    + '<div class="setup-opts" style="margin-top:12px">'
+      + TRACK_OPTIONAL.map(function(id){
+          return '<button class="setup-opt" type="button" data-tk="' + id + '" aria-pressed="'
+            + (trackDraft.indexOf(id) > -1) + '">' + esc(areaLabel(id)) + '</button>';
+        }).join("")
+    + '</div>'
+    + '<div class="actions">'
+      + '<button class="btn btn-primary" type="button" id="tk-save">Save</button>'
+      + '<button class="btn btn-ghost" type="button" id="tk-all">Keep all six</button>'
+    + '</div>';
+  host.querySelectorAll("[data-tk]").forEach(function(b){
+    b.addEventListener("click", function(){
+      const id = b.dataset.tk, at = trackDraft.indexOf(id);
+      if(at > -1) trackDraft.splice(at, 1); else trackDraft.push(id);
+      renderTrackAsk();
+    });
+  });
+  document.getElementById("tk-save").addEventListener("click", function(){
+    const pick = trackDraft; trackDraft = null; setTracking(pick);
+  });
+  document.getElementById("tk-all").addEventListener("click", function(){
+    trackDraft = null; setTracking(TRACK_OPTIONAL.slice());
+  });
+}
+
+/* The same switches, permanently, in Settings. */
+function renderTrackOpts(){
+  const host = document.getElementById("track-opts");
+  if(!host) return;
+  host.innerHTML =
+    '<button class="setup-opt" type="button" aria-pressed="true" disabled>Training</button>'
+    + TRACK_OPTIONAL.map(function(id){
+        return '<button class="setup-opt" type="button" data-tr="' + id + '" aria-pressed="' + tracks(id) + '">'
+          + esc(areaLabel(id)) + '</button>';
+      }).join("");
+  host.querySelectorAll("[data-tr]").forEach(function(b){
+    b.addEventListener("click", function(){
+      const on = TRACK_OPTIONAL.filter(function(id){ return tracks(id); });
+      const id = b.dataset.tr, at = on.indexOf(id);
+      if(at > -1) on.splice(at, 1); else on.push(id);
+      setTracking(on);
+    });
+  });
+  const note = document.getElementById("track-note");
+  if(note) note.textContent = Array.isArray(state.tracking)
+    ? "Training is always on. Anything off leaves the ring, the weekly review and the evening notification; what you logged is kept."
+    : "Everything is on until you say otherwise. Training can\u2019t be switched off.";
+}
+
 function renderReweigh(){
   const host = document.getElementById("reweigh");
   if(!host) return;
   const drift = driftFromSuggestion();
   const due = weighDue();
-  host.hidden = !(due || drift);
+  /* A weight with no height is a number nothing in here can use: the
+     starting level and the jumping advice both go off BMI. It came in on its
+     own from setup or from Health, so ask for the other half here, once. */
+  const needH = !due && !drift && !!latestWeight() && !Number(bodyCfg().height) && !state.heightSkipped;
+  host.hidden = !(due || drift || needH);
   if(host.hidden) return;
+
+  if(needH){
+    const lw = latestWeight();
+    host.innerHTML =
+      '<h4>No height on record</h4>'
+      + '<p>You\u2019re logged at <b>' + lw.kg.toFixed(1) + ' kg</b> and nothing else, so nothing in here can use it \u2014 '
+        + 'the starting level and the jumping advice go off BMI, and that needs both numbers. Asked once.</p>'
+      + '<div class="field-row" style="margin-top:12px"><div class="field"><label for="rw-h">Height (cm)</label>'
+        + '<input id="rw-h" type="number" inputmode="numeric" min="100" max="250"></div></div>'
+      + '<div class="actions">'
+        + '<button class="btn btn-primary" type="button" id="rw-hsave">Save</button>'
+        + '<button class="btn btn-ghost" type="button" id="rw-hskip">Rather not</button>'
+      + '</div>';
+    const inp = document.getElementById("rw-h");
+    const commitH = function(){
+      const h = Number(inp.value);
+      if(!(h >= 100 && h <= 250)){ inp.focus(); return; }
+      bodyCfg().height = Math.round(h);
+      inp.blur();
+      save(); renderAll();
+    };
+    document.getElementById("rw-hsave").addEventListener("click", commitH);
+    inp.addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); commitH(); } });
+    document.getElementById("rw-hskip").addEventListener("click", function(){
+      state.heightSkipped = true; save(); renderAll();
+    });
+    return;
+  }
 
   const age = weighAge(), w = latestWeight();
 
@@ -3042,7 +3163,11 @@ function renderRewardsTab(){
         + 'your life you spend it on.'
       + '</p></div>';
 
-  html += '<div class="rw-list">' + allRewards().map(function(r){
+  /* "Eat what you want" is worth nothing to someone not tracking eating, and
+     spending a finished week on it would be the app taking something for
+     nothing. Built-ins follow the switch; your own are always yours. */
+  html += '<div class="rw-list">' + REWARDS.filter(function(r){ return tracks(r.area); })
+      .concat(customRewards()).map(function(r){
     const why = claimBlocked(r);
     const col = areaColour(r.area);
     const own = String(r.id).indexOf("c-") === 0;
@@ -3140,8 +3265,10 @@ function renderFigs(){
     {k:"Week streak",     v:streak, u:streak===1?"week":"weeks", f:streak>=2?"good":null},
     {k:"Days since",     v:gap===null?"—":gap, u:gap===null?"never trained":"days", f:(gap!==null&&gap>=4)?"bad":null},
     {k:"Weeks short",    v:weeksBelowTarget(), u:"of target", f:weeksBelowTarget()>0?"bad":null},
-    {k:"Jobs behind",    v:choresOverdue().length, u:"of "+choreList().length,
-      f:choresOverdue().length > 0 ? "bad" : "good"}
+    tracks("house")
+      ? {k:"Jobs behind",    v:choresOverdue().length, u:"of "+choreList().length,
+          f:choresOverdue().length > 0 ? "bad" : "good"}
+      : {k:"Sessions",       v:total, u:"logged in all", f:null}
   ];
   document.getElementById("figs").innerHTML = items.map(function(i){
     return '<div class="fig"'+(i.f?' data-flag="'+i.f+'"':"")+'>'
@@ -4423,11 +4550,68 @@ const AREAS = [
     }}
 ];
 
-let ringRot = -60, ringFocus = 1, ringDragging = false;   // opens on Training
+/* ---------- what you track ----------
+   Six areas is the whole of a life, and nobody uses all six. Every one you
+   don't use still sat on the ring reading "0/5", still went in the weekly
+   review, and could still be the line in the evening notification — the app
+   holding you to something you never signed up for, which is how an app like
+   this teaches you to skim it.
 
+   Training can't be switched off: it is what everything else is bought with.
+   The rest can. Off means off the ring, the review, the rewards list and the
+   notification. Nothing logged is deleted, and switching back on picks up
+   where it was. `state.tracking` unset means everything, exactly as before. */
+const TRACK_OPTIONAL = ["house", "eat", "money", "sleep", "people"];
+function tracks(id){
+  if(id === "train" || id === "all") return true;
+  const t = state.tracking;
+  return !Array.isArray(t) || t.indexOf(id) > -1;
+}
+function shownAreas(){
+  const out = [];
+  AREAS.forEach(function(a, i){ if(tracks(a.id)) out.push(i); });
+  return out;
+}
+function ringStep(){ return 360 / Math.max(1, shownAreas().length); }
+/* Puts the ring back on a real disc: after the set of areas changes, or if
+   the focused one has just been switched off. */
+function snapRing(){
+  const shown = shownAreas();
+  if(shown.indexOf(ringFocus) < 0) ringFocus = shown.indexOf(1) > -1 ? 1 : shown[0];
+  ringRot = -ringStep() * shown.indexOf(ringFocus);
+}
+function setTracking(list){
+  state.tracking = TRACK_OPTIONAL.filter(function(id){ return list.indexOf(id) > -1; });
+  snapRing();
+  save(); renderAll();
+}
+function weeklyHas(a){ return !!(state.weekly && Array.isArray(state.weekly[a]) && state.weekly[a].length); }
+/* What has never had anything put in it. Seeded house jobs don't count as
+   use — the app put those there, not you. */
+function untouchedAreas(){
+  const d = state.daily || {}, days = Object.keys(d), sp = state.spend || {};
+  const used = {
+    house: choreList().some(function(c){ return c.last; }) || weeklyHas("house"),
+    eat: days.some(function(k){ return d[k] && (d[k].protein || d[k].nojunk); }) || weeklyHas("eat"),
+    sleep: days.some(function(k){ return d[k] && d[k].bed; }) || weeklyHas("sleep"),
+    money: Object.keys(sp).some(function(k){ return Number(sp[k]) > 0; }) || weeklyHas("money"),
+    people: peopleList().length > 0 || weeklyHas("people")
+  };
+  return TRACK_OPTIONAL.filter(function(id){ return !used[id]; });
+}
+function andList(xs){
+  return xs.length < 2 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1];
+}
+
+let ringRot = -60, ringFocus = 1, ringDragging = false, ringSig = null;   // opens on Training
+
+/* Evenly round the circle, however many are shown. Off areas get no slot. */
 function ringSlots(){
+  const shown = shownAreas(), step = 360 / Math.max(1, shown.length);
   return AREAS.map(function(a, i){
-    const t = (-90 + i * 60 + ringRot) * Math.PI / 180;
+    const p = shown.indexOf(i);
+    if(p < 0) return null;
+    const t = (-90 + p * step + ringRot) * Math.PI / 180;
     return { x: Math.cos(t) * RING_R, y: Math.sin(t) * RING_R };
   });
 }
@@ -4502,8 +4686,10 @@ function showFocusedSection(){
 let settingsOpen = false, rewardsOpen = false;
 
 function focusArea(i, jump){
+  const shown = shownAreas();
+  if(shown.indexOf(i) < 0) i = shown.indexOf(1) > -1 ? 1 : shown[0];
   ringFocus = i;
-  ringRot = -60 * i;
+  ringRot = -ringStep() * shown.indexOf(i);
   settingsOpen = false;
   rewardsOpen = false;
   renderRing();
@@ -4515,6 +4701,13 @@ function renderRing(){
   if(!wrap) return;
   if(!ringNodes) buildRing();
   if(!ringNodes) return;
+  /* The record can change underneath the ring — a switch in Settings, or
+     another device's copy arriving — so re-seat it whenever the set of shown
+     areas moves. Never mid-drag. */
+  if(!ringDragging){
+    const sig = shownAreas().join(",");
+    if(sig !== ringSig || !tracks(AREAS[ringFocus].id)){ ringSig = sig; snapRing(); }
+  }
 
   document.getElementById("hub-when").textContent = greeting().toUpperCase();
   /* This said "Caiden" in the markup, so everybody's ring said Caiden. */
@@ -4544,7 +4737,11 @@ function renderRing(){
   const slots = ringSlots();
 
   AREAS.forEach(function(a, i){
-    const n = ringNodes[i], r = a.read(), sl = slots[i];
+    const n = ringNodes[i], sl = slots[i];
+    n.b.style.display = sl ? "" : "none";
+    n.lab.style.display = sl ? "" : "none";
+    if(!sl) return;
+    const r = a.read();
     const focused = i === ringFocus;
     const col = "var(" + a.colour + ")";
 
@@ -4597,8 +4794,8 @@ function renderStrip(){
   const dots = document.getElementById("strip-dots");
   const name = document.getElementById("strip-name");
   if(!dots || !name) return;
-  dots.innerHTML = AREAS.map(function(a, i){
-    const r = a.read();
+  dots.innerHTML = shownAreas().map(function(i){
+    const a = AREAS[i], r = a.read();
     return '<button class="strip-dot" type="button" data-si="' + i + '"'
       + ' data-on="' + (i === ringFocus ? 1 : 0) + '"'
       + ' data-fill="' + (r.state === "behind" ? 1 : 0) + '"'
@@ -4671,9 +4868,10 @@ function wireRing(){
     wrap.classList.remove("dragging");
 
     if(moved){
-      const steps = Math.round(ringRot / 60);
-      ringRot = steps * 60;
-      ringFocus = ((-steps % 6) + 6) % 6;
+      const shown = shownAreas(), step = ringStep(), n = shown.length;
+      const steps = Math.round(ringRot / step);
+      ringRot = steps * step;
+      ringFocus = shown[((-steps % n) + n) % n];
       renderRing();
       /* Swallow the click the browser sends after a drag. */
       setTimeout(function(){ ringDragging = false; }, 80);
@@ -5128,10 +5326,10 @@ function renderReview(){
   document.getElementById("review-body").innerHTML =
     '<div class="review-last">'
       + tile("Sessions", f.sessions + "/" + f.target, f.sessions >= f.target ? "good" : "bad")
-      + tile("Eating", f.eat + "/" + areaCfg().eat.target)
-      + tile("Sleep", f.sleep + "/" + areaCfg().sleep.target)
-      + tile("Spent", money(f.spent), f.spent > areaCfg().money.cap ? "bad" : null)
-      + tile("Jobs behind", f.jobsBehind, f.jobsBehind ? "bad" : "good")
+      + (tracks("eat") ? tile("Eating", f.eat + "/" + areaCfg().eat.target) : "")
+      + (tracks("sleep") ? tile("Sleep", f.sleep + "/" + areaCfg().sleep.target) : "")
+      + (tracks("money") ? tile("Spent", money(f.spent), f.spent > areaCfg().money.cap ? "bad" : null) : "")
+      + (tracks("house") ? tile("Jobs behind", f.jobsBehind, f.jobsBehind ? "bad" : "good") : "")
       + tile("Carried over", f.carried, f.carried ? "bad" : null)
     + '</div>'
     + '<p class="review-say">' + esc(reviewVerdict(f)) + '</p>'
@@ -5139,9 +5337,9 @@ function renderReview(){
       + '<h4 style="margin:0;font-size:15.5px;font-weight:600">What has to happen this week?</h4>'
       + '<p class="sec-note">Pick where it belongs, type it, hit add. It carries over if you don’t do it.</p>'
       + '<div class="review-areas" id="review-areas">'
-        + AREAS.map(function(a,i){
+        + AREAS.filter(function(a){ return tracks(a.id); }).map(function(a){
             return '<button class="review-area" type="button" data-ra="' + a.id + '"'
-              + ' aria-pressed="' + (i === 1) + '" style="color:var(' + a.colour + ')">' + a.name + '</button>';
+              + ' aria-pressed="' + (a.id === "train") + '" style="color:var(' + a.colour + ')">' + a.name + '</button>';
           }).join("")
       + '</div>'
       + '<div class="note-bar" style="padding:0;border:0;background:transparent">'
@@ -5174,7 +5372,7 @@ function renderReview(){
     weeklyFor(picked).push({id:"w-" + Date.now().toString(36), text:v, done:false});
     input.value = "";
     save(); renderAllWeekly(); renderRing();
-    const total = AREAS.reduce(function(n,a){ return n + weeklyOutstanding(a.id); }, 0);
+    const total = AREAS.reduce(function(n,a){ return n + (tracks(a.id) ? weeklyOutstanding(a.id) : 0); }, 0);
     added.textContent = plural(total, "task") + " on the board for this week.";
     input.focus();
   }
@@ -5208,7 +5406,7 @@ function goalFocusIndex(){
 
 function applyGoalFocus(){
   ringFocus = goalFocusIndex();
-  ringRot = -60 * ringFocus;
+  snapRing();
 }
 
 function renderBody(){
@@ -5631,6 +5829,7 @@ function renderAll(){
   draw("mates", renderMates);
   draw("kit", maybeAskForKit);
   draw("re-weigh", renderReweigh);
+  draw("tracking", renderTrackAsk);
   draw("rewards", renderRewards);
   if(rewardsOpen) draw("rewards tab", renderRewardsTab);
   draw("figures", renderFigs);      draw("target", renderTarget);
@@ -5649,6 +5848,7 @@ function renderAll(){
   draw("level", renderLevelPicker);
   draw("impact", renderImpactPicker);
   draw("goal", renderGoal);
+  draw("what you track", renderTrackOpts);
   draw("key", renderKeyBlock);
   /* renderAll runs once during boot, before this module is assigned, so this
      has to tolerate its absence. */
@@ -5917,12 +6117,18 @@ function tickClock(){
   if(rolled){ expressMode = false; expressTouched = false; }
   return rolled;
 }
+/* Any text box with the cursor in it. The tick used to spare only the job
+   edit form, so a height half typed into a card vanished on the minute. */
+function typing(){
+  const a = document.activeElement;
+  return !!a && (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && a.type !== "checkbox" && a.type !== "file"));
+}
 function comeBack(){
   const rolled = tickClock();
   Store.flush();
   Store.retryConnect(adoptRemote, showGate);
   Notify.init();
-  if(!rolled && document.querySelector(".job-edit:not([hidden])")) return;
+  if(!rolled && (document.querySelector(".job-edit:not([hidden])") || typing())) return;
   renderAll();
 }
 document.addEventListener("visibilitychange", function(){
@@ -5938,7 +6144,7 @@ setInterval(function(){
   Store.retryConnect(adoptRemote, showGate);
   Notify.init();
   /* Don't yank a half-typed job out from under them on the minute tick. */
-  if(!rolled && document.querySelector(".job-edit:not([hidden])")) return;
+  if(!rolled && (document.querySelector(".job-edit:not([hidden])") || typing())) return;
   renderAll();
 }, 60000);
 </script>
