@@ -31,6 +31,22 @@ function normalise(entry) {
   return { area, text };
 }
 
+/** Mirrors weeklyBucket() in iron-ledger.html: done tasks drop off, the rest
+    carry forward with their count raised by one. */
+export function rollWeek(state, monday) {
+  if (!state.weekly || typeof state.weekly !== "object") state.weekly = {};
+  if (state.weeklyWeek === monday) return false;
+  if (state.weeklyWeek) {
+    for (const a of Object.keys(state.weekly)) {
+      state.weekly[a] = (state.weekly[a] || [])
+        .filter((t) => !t.done)
+        .map((t) => ({ ...t, carried: (t.carried || 0) + 1 }));
+    }
+  }
+  state.weeklyWeek = monday;
+  return true;
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -79,7 +95,11 @@ export default async function handler(req, res) {
     // Read-modify-write. Fine for one person; it would need a lease if the
     // ledger were ever shared.
     if (!state.weekly || typeof state.weekly !== "object") state.weekly = {};
-    if (!state.weeklyWeek) state.weeklyWeek = monday;
+    /* Roll the week here too, with the same rule the app uses. Only the app
+       used to roll, so a task added by a Shortcut on Monday morning — the
+       Reminders recipe runs at 08:00 — went into last week's bucket and was
+       then marked "carried x1" the moment the app opened. */
+    rollWeek(state, monday);
 
     const added = [];
     for (const { area, text } of cleaned) {

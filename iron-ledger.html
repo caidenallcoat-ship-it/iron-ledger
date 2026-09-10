@@ -2298,11 +2298,6 @@ function busyAhead(){
   }
   return out;
 }
-function setBusy(k, what){
-  if(what) busyLog()[k] = String(what).slice(0, 60);
-  else delete busyLog()[k];
-  save(); renderAll();
-}
 function expressRate(){
   const ks = Object.keys(state.done).sort().slice(-10);
   if(ks.length < 4) return null;
@@ -3880,7 +3875,7 @@ const DENSITY = {
   "Floor press":"three seconds down, no bounce off the floor",
   "Complex — clean, press, squat, swing":"no rest between the four, straight through"
 };
-function densityCue(name){ return DENSITY[name] || "more reps, or slower ones"; }
+function densityCue(name){ const c = DENSITY[name] || "more reps, or slower ones"; return c.charAt(0).toUpperCase() + c.slice(1); }
 
 /* The next bell up the standard ladder: 8, 12, 16, 20, 24, 28, 32. */
 const BELL_LADDER = [8, 12, 16, 20, 24, 28, 32, 36, 40];
@@ -4715,7 +4710,9 @@ function weeklyBucket(){
   if(!state.weekly || typeof state.weekly !== "object") state.weekly = {};
   const mon = key(mondayOf(TODAY));
   if(state.weeklyWeek !== mon){
-    Object.keys(state.weekly).forEach(function(a){
+    /* Same rule as rollWeek() in api/task.js, which now rolls too: nothing
+       is carried the very first time a week is set, only when one ends. */
+    if(state.weeklyWeek) Object.keys(state.weekly).forEach(function(a){
       state.weekly[a] = (state.weekly[a] || [])
         .filter(function(t){ return !t.done; })
         .map(function(t){ return Object.assign({}, t, {carried: (t.carried || 0) + 1}); });
@@ -5298,9 +5295,15 @@ var SMode = (function(){
     el("sm-name").title = w.eased ? "An easier form than the programme writes" : "";
     el("sm-dose").textContent = w.d;
     el("sm-sets").textContent = got + " of " + want + " sets";
-    el("sm-cue").innerHTML = cue
-      ? "<b>Watch for:</b> " + cue.fault
+    /* With one bell the load phase says "take the harder version of anything
+       that still feels easy" — so say what the harder version is, here, on
+       the movement, rather than leaving it as an instruction with no content. */
+    const harder = oneBellOnly() && takesLoad(w) && phaseFor(weekNumber()).i >= 2
+      ? "<br><br><b>Too easy with the " + esc(String(heaviestBell())) + "?</b> " + esc(densityCue((w.base || w).n)) + "."
       : "";
+    el("sm-cue").innerHTML = (cue
+      ? "<b>Watch for:</b> " + cue.fault
+      : "") + harder;
 
     /* The bell row. Empty the first time round, one tap every time after. */
     const lr = el("sm-load");

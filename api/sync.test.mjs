@@ -122,6 +122,29 @@ ok("a genuine clash goes to the app", merge3({ target: 3 }, { target: 4 }, { tar
 ok("key order doesn't count as a change",
   merge3({ a: { x: 1, y: 2 } }, { a: { y: 2, x: 1 } }, { a: { x: 1, y: 2, z: 3 } }).a.z === 3);
 
+console.log("");
+console.log("Monday morning: the Reminders Shortcut adds this week's tasks");
+const taskH = (await import("./task.js")).default;
+// Thursday 10th is "now"; last week's bucket was Monday 31st Aug.
+await U.saveFor(uid, { ...JSON.parse(JSON.stringify(base0)), weeklyWeek: "2026-08-31",
+  weekly: { house: [
+    { id: "old1", text: "Ring the dentist", done: false },
+    { id: "old2", text: "Bin bags", done: true },
+  ] }, updatedAt: 6000 });
+r = await call(taskH, "POST", { area: "house", text: "Book the MOT" });
+const wk = (await U.loadFor(uid));
+const h = wk.weekly.house;
+ok("the week rolled on the server", wk.weeklyWeek === "2026-09-07", wk.weeklyWeek);
+ok("the task added this morning is not marked as carried",
+  !(h.find((t) => t.text === "Book the MOT") || {}).carried, JSON.stringify(h));
+ok("last week's unfinished task is carried once", (h.find((t) => t.id === "old1") || {}).carried === 1, JSON.stringify(h));
+ok("last week's finished task has dropped off", !h.some((t) => t.id === "old2"), JSON.stringify(h));
+// a second add the same week must not roll again
+await call(taskH, "POST", { area: "house", text: "Post the parcel" });
+const h2 = (await U.loadFor(uid)).weekly.house;
+ok("a second task the same week doesn't carry anything again",
+  (h2.find((t) => t.id === "old1") || {}).carried === 1, JSON.stringify(h2));
+
 globalThis.Date = RealDate;
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
