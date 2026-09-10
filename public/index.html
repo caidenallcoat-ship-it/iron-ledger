@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-10T08:53:16.461Z";</script>
+<script>window.__BUILD__ = "2026-09-10T09:01:04.798Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2440,12 +2440,24 @@ function peopleList(){
   if(!Array.isArray(state.people)) state.people = [];
   return state.people;
 }
-function personOver(p){ const a = p.last ? daysBetween(p.last, TODAY_K) : null; return a === null ? 9999 : a - p.every; }
+/* ---------- when a clock starts ----------
+   Something you have never logged used to count as infinitely late. So on day
+   three every one of the seven seeded house jobs was "behind", the evening
+   notification said "7 jobs behind", and changing the bedding — a fortnightly
+   job — was as overdue as it could possibly be before anyone had had a
+   fortnight. That teaches you to ignore the section before you have used it.
+
+   A clock now starts when the thing goes on your list: the day it was added,
+   or the day you started the ledger. A two-day job three days in is honestly a
+   day behind; a fourteen-day one is not. The server uses the same rule. */
+function clockFrom(x){ return x.last || x.added || state.start || TODAY_K; }
+function neverLogged(x){ return !x.last; }
+function personOver(p){ return daysBetween(clockFrom(p), TODAY_K) - p.every; }
 function peopleOverdue(){ return peopleList().filter(function(p){ return personOver(p) > 0; }); }
 function peopleSorted(){ return peopleList().slice().sort(function(a,b){ return personOver(b) - personOver(a); }); }
 function personAge(p){
-  const a = p.last ? daysBetween(p.last, TODAY_K) : null;
-  if(a === null) return "never logged";
+  if(neverLogged(p)) return "not logged yet";
+  const a = daysBetween(p.last, TODAY_K);
   if(a === 0) return "today";
   if(a === 1) return "yesterday";
   if(a < 14) return a + " days ago";
@@ -2466,15 +2478,14 @@ function choreById(id){
   for(let i=0;i<l.length;i++) if(l[i].id === id) return l[i];
   return null;
 }
-function choreAge(c){ return c.last ? daysBetween(c.last, TODAY_K) : null; }
-/* Never-done sorts above everything so it can't hide at the bottom of the list. */
-function choreOver(c){ const a = choreAge(c); return a === null ? 9999 : a - c.every; }
+function choreAge(c){ return daysBetween(clockFrom(c), TODAY_K); }
+function choreOver(c){ return choreAge(c) - c.every; }
 function choreState(c){ const o = choreOver(c); return o > 0 ? "over" : (o === 0 ? "due" : "ok"); }
 function choresOverdue(){ return choreList().filter(function(c){ return choreOver(c) > 0; }); }
 function choresSorted(){ return choreList().slice().sort(function(a,b){ return choreOver(b) - choreOver(a); }); }
 function ageText(c){
+  if(neverLogged(c)) return "not logged yet";
   const a = choreAge(c);
-  if(a === null) return "never done";
   if(a === 0) return "done today";
   if(a === 1) return "1 day ago";
   return a + " days ago";
@@ -3706,7 +3717,8 @@ function renderHouse(){
   host.innerHTML = list.map(function(c){
     const o = choreOver(c), doneToday = c.last === TODAY_K;
     let pill, pillS;
-    if(c.last === null){ pill = "Never done"; pillS = "over"; }
+    if(neverLogged(c) && o > 0){ pill = "Not logged · " + plural(o,"day") + " over"; pillS = "over"; }
+    else if(neverLogged(c) && o < 0){ pill = "Not logged yet"; pillS = "ok"; }
     else if(o > 0){ pill = plural(o,"day") + " over"; pillS = "over"; }
     else if(o === 0){ pill = "Due today"; pillS = "due"; }
     else { pill = "Due in " + plural(-o,"day"); pillS = "ok"; }
@@ -3801,7 +3813,7 @@ function wireAddJob(){
       const e = parseInt(document.getElementById("new-e").value, 10);
       if(!n){ document.getElementById("new-n").focus(); return; }
       choreList().push({id:"job-"+Date.now().toString(36), name:n,
-        every:(e >= 1 && e <= 365) ? e : 7, last:null});
+        every:(e >= 1 && e <= 365) ? e : 7, last:null, added:TODAY_K});
       form.hidden = true; btn.textContent = "Add a job";
       save(); renderHouse(); renderFigs();
     });
@@ -4256,7 +4268,7 @@ function wireAddPerson(){
       const e = parseInt(document.getElementById("new-pe").value, 10);
       if(!n){ document.getElementById("new-pn").focus(); return; }
       peopleList().push({ id: "p-" + Date.now().toString(36), name: n,
-        every: (e >= 1 && e <= 365) ? e : 14, last: null });
+        every: (e >= 1 && e <= 365) ? e : 14, last: null, added: TODAY_K });
       form.hidden = true; btn.textContent = "Add someone";
       save(); renderPeople();
     });
@@ -4283,8 +4295,8 @@ const AREAS = [
       return { pct:pct, state: over ? "behind" : (all.length ? "clear" : "ok"),
         status: over ? over + " behind" : (all.length ? "all current" : "none set"),
         note: !all.length ? "No jobs tracked yet."
-          : over ? (worst.last === null
-              ? worst.name + " has never been logged, and " + over + " of " + all.length + " jobs are behind."
+          : over ? (neverLogged(worst)
+              ? worst.name + " hasn't been logged since it went on the list, and " + over + " of " + all.length + " jobs are behind."
               : worst.name + " is " + plural(choreOver(worst),"day") + " past due. " + over + " of " + all.length + " behind.")
             : "Every job is inside its window." };
     }},

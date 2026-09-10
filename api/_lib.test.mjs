@@ -171,6 +171,36 @@ ok("a met week still wins over spacing",
   buildNudge(base(twoRunning, { target: 2 }), TODAY) === null);
 
 console.log("");
+console.log("a clock starts when a job goes on the list");
+// The seven jobs this ledger was seeded with, never logged, three days in.
+const seeded = [
+  ["Washing taken down", 3], ["Clothes put away, not on the chair", 2], ["Room tidy — floor clear", 3],
+  ["Bin emptied", 7], ["Desk and surfaces wiped", 7], ["Room hoovered", 7], ["Bedding changed", 14],
+].map(([name, every], i) => ({ id: "c" + i, name, every, last: null }));
+const day3 = buildNudge(base({}, { start: day(3), chores: seeded }), TODAY);
+ok("three days in it does not say seven jobs behind",
+  !/7 behind|7 jobs behind/.test(day3.body), day3.body);
+ok("it names the one that is genuinely late", /Clothes put away/.test(day3.body) && /1 behind/.test(day3.body), day3.body);
+ok("and says it hasn't been logged rather than that it hasn't been done",
+  /hasn't been logged since it went on the list/.test(day3.body), day3.body);
+const day1 = buildNudge(base({}, { start: TODAY, chores: seeded }), TODAY);
+ok("on day one no job is behind", !/behind/.test(day1.body), day1.body);
+// A job added later runs from when it was added, not from the start.
+const lateAdd = buildNudge(base({}, { start: day(30),
+  chores: [{ id: "x", name: "Descale the kettle", every: 14, last: null, added: day(5) }] }), TODAY);
+ok("a job added later isn't late from before it existed", !/Descale/.test(lateAdd.body), lateAdd.body);
+
+// People: "you haven't spoken to them" is a claim, and unknown for someone never logged.
+const quiet = buildNudge(base({}, { start: day(20),
+  people: [{ id: "p", name: "Mum", every: 14, last: null }] }), TODAY);
+ok("someone never logged is described truthfully",
+  /Mum has been on your list 2 weeks with nothing logged/.test(quiet.body), quiet.body);
+ok("not as if you know you haven't spoken", !/haven't spoken to Mum/.test(quiet.body), quiet.body);
+const known = buildNudge(base({}, { start: day(30),
+  people: [{ id: "p", name: "Mum", every: 14, last: day(20) }] }), TODAY);
+ok("someone logged still gets the plain line", /haven't spoken to Mum in 2 weeks/.test(known.body), known.body);
+
+console.log("");
 console.log("day one names the right time");
 const { slotText } = await import("./_lib.js");
 ok("a 17:30 slot reads as 17:30", slotText({ slot: 17.5 }) === "17:30");

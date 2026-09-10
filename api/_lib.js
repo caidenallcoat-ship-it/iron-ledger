@@ -288,16 +288,20 @@ export function buildNudge(state, todayKey) {
 
   if (Array.isArray(state.chores)) {
     let worst = null, behind = 0;
+    /* Same rule as clockFrom() in the app: a never-logged job starts its clock
+       the day it went on the list, not infinitely in the past. This line used
+       to tell someone on day three that they were seven jobs behind. */
     for (const c of state.chores) {
-      const over = c.last ? daysBetween(c.last, todayKey) - c.every : 9999;
+      const from = c.last || c.added || start;
+      const over = daysBetween(from, todayKey) - c.every;
       if (over > 0) behind++;
       if (!worst || over > worst.over) worst = { name: c.name, over, never: !c.last };
     }
     if (worst && worst.over > 0) {
       candidates.push({
-        area: "order", severity: Math.min(worst.never ? 30 : worst.over, 60),
+        area: "order", severity: Math.min(worst.over, 60),
         line: worst.never
-          ? `${worst.name} still hasn't been done — ${behind} jobs behind.`
+          ? `${worst.name} hasn't been logged since it went on the list — ${behind} behind.`
           : `${worst.name} is ${plural(worst.over, "day")} past due; ${behind} behind.`,
       });
     }
@@ -306,10 +310,9 @@ export function buildNudge(state, todayKey) {
   if (Array.isArray(state.people)) {
     let worst = null;
     for (const p of state.people) {
-      if (!p.last) continue;                     // never logged isn't a fact about them
-      const since = daysBetween(p.last, todayKey);
+      const since = daysBetween(p.last || p.added || start, todayKey);
       const over = since - p.every;
-      if (over > 0 && (!worst || over > worst.over)) worst = { name: p.name, over, since };
+      if (over > 0 && (!worst || over > worst.over)) worst = { name: p.name, over, since, never: !p.last };
     }
     if (worst) {
       const how = worst.since >= 14
@@ -317,7 +320,11 @@ export function buildNudge(state, todayKey) {
         : plural(worst.since, "day");
       candidates.push({
         area: "order", severity: Math.min(worst.over, 60),
-        line: `You haven't spoken to ${worst.name} in ${how}.`,
+        /* "You haven't spoken to them in N days" is a claim about the person,
+           and for someone never logged it isn't known — so say what is. */
+        line: worst.never
+          ? `${worst.name} has been on your list ${how} with nothing logged.`
+          : `You haven't spoken to ${worst.name} in ${how}.`,
       });
     }
   }
