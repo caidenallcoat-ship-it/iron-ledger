@@ -5716,19 +5716,38 @@ window.addEventListener("online", function(){
   Store.flush();
   Store.retryConnect(adoptRemote, showGate);
 });
-document.addEventListener("visibilitychange", function(){
-  if(document.visibilityState !== "visible") return;
-  Store.flush();
-  Store.retryConnect(adoptRemote, showGate);
-  Notify.init();
-});
-
-/* The clock drives the nag, so keep it honest while the page sits open. */
-setInterval(function(){
+/* The date only used to move on the one-minute timer, and a phone suspends a
+   backgrounded app — so unlock it the next evening and for up to a minute it
+   still believed it was yesterday. The session card said "Session logged ✓",
+   which was last night's, and tonight's never got recorded because it looked
+   like it already had been. The clock is read the moment the app comes back. */
+function tickClock(){
   const now = new Date();
   const rolled = key(now) !== TODAY_K;
   TODAY = now; TODAY_K = key(now); NOW_H = now.getHours() + now.getMinutes()/60;
-  if(rolled) expressMode = false;
+  /* A new day starts with a clean slate on the short version, including
+     whether you'd touched it — otherwise yesterday's tap switched off today's
+     "back from a break" default. */
+  if(rolled){ expressMode = false; expressTouched = false; }
+  return rolled;
+}
+function comeBack(){
+  const rolled = tickClock();
+  Store.flush();
+  Store.retryConnect(adoptRemote, showGate);
+  Notify.init();
+  if(!rolled && document.querySelector(".job-edit:not([hidden])")) return;
+  renderAll();
+}
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "visible") comeBack();
+});
+/* iOS restores pages from its back-forward cache without re-running scripts. */
+window.addEventListener("pageshow", function(e){ if(e.persisted) comeBack(); });
+
+/* The clock drives the nag, so keep it honest while the page sits open. */
+setInterval(function(){
+  const rolled = tickClock();
   Store.flush();
   Store.retryConnect(adoptRemote, showGate);
   Notify.init();
