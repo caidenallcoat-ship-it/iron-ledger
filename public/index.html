@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-10T08:42:08.073Z";</script>
+<script>window.__BUILD__ = "2026-09-10T08:49:51.537Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1444,6 +1444,30 @@ function setSync(m){ const el=document.getElementById("sync-state"); if(el) el.t
    the network decides what it's doing. */
 var Store = (function(){
   var mode = "local", ref = null, secret = null, pushing = false, dirty = false, pendingPush = false;
+  /* The server version this device last synced with. Sent with every save so
+     the server can tell what this device actually changed, and merge it with
+     anything a Shortcut wrote in the meantime instead of saving over it.
+     Kept across reloads; cleared whenever the key changes, because another
+     person's base is worse than none. */
+  var base = null;
+  try{ const b = localStorage.getItem("iron-ledger-base"); if(b) base = JSON.parse(b); }catch(e){ base = null; }
+  function setBase(d){
+    base = d ? JSON.parse(JSON.stringify(d)) : null;
+    try{
+      if(base) localStorage.setItem("iron-ledger-base", JSON.stringify(base));
+      else localStorage.removeItem("iron-ledger-base");
+    }catch(e){}
+  }
+  /* Same shape as canon() in api/_merge.js: sorted keys, so two copies that
+     differ only in key order compare equal. */
+  function canon(v){
+    if(v === undefined) return "u";
+    if(v === null || typeof v !== "object") return JSON.stringify(v);
+    if(Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
+    return "{" + Object.keys(v).sort().filter(function(k){ return v[k] !== undefined; })
+      .map(function(k){ return JSON.stringify(k) + ":" + canon(v[k]); }).join(",") + "}";
+  }
+  function sansStamp(d){ const c = Object.assign({}, d); delete c.updatedAt; return c; }
   var readyCbs = [], readyFired = false;
   /* Fires once the backend is settled. Anything that depends on knowing
      whether there's a server must wait for this, not for a timeout. */
@@ -1464,10 +1488,34 @@ var Store = (function(){
   function pushApi(){
     if(pushing){ dirty = true; return; }
     pushing = true;
-    fetch("/api/state", {method:"PUT", headers:headers(true), body:JSON.stringify(state)})
+    const sent = JSON.parse(JSON.stringify(state));
+    const payload = base ? Object.assign({}, sent, {_base: base}) : sent;
+    fetch("/api/state", {method:"PUT", headers:headers(true), body:JSON.stringify(payload)})
       .then(function(r){
         if(!r.ok) throw new Error(String(r.status));
+        return r.json().catch(function(){ return {}; });
+      })
+      .then(function(j){
         pendingPush = false;
+        const saved = j && j.state && typeof j.state === "object" ? j.state : null;
+        if(saved){
+          if(dirty){
+            /* More was changed while this was in flight. Adopting the reply
+               would throw those changes away, so just move the base to what
+               was sent; the next save merges against whatever the server now
+               holds, Shortcut writes included. */
+            setBase(sent);
+          } else if(j.merged){
+            /* The server had something this device didn't — a session from
+               the Watch, sleep from Health — and has folded it in. Take the
+               merged record so it shows here too. */
+            adoptMerged(saved);
+          } else {
+            state.updatedAt = saved.updatedAt;
+            setBase(saved);
+            saveLocal();
+          }
+        }
         setSync("Synced — your record follows you to any device.");
       })
       .catch(function(){
@@ -1488,7 +1536,14 @@ var Store = (function(){
   return {
     mode: function(){ return mode; },
 
+    setBase: setBase,
+    hasBase: function(){ return Boolean(base); },
+    /* Whether this device holds changes the server hasn't had yet. */
+    hasLocalChanges: function(){
+      return Boolean(base) && canon(sansStamp(state)) !== canon(sansStamp(base));
+    },
     setSecret: function(k){
+      if(k !== secret) setBase(null);
       secret = k;
       try{ localStorage.setItem("iron-ledger-key", k); }catch(e){}
     },
@@ -3232,7 +3287,14 @@ function renderKeyBlock(){
     note.textContent = "Synced. Your record follows you to any device signed in with this key.";
     btn.onclick = function(){
       if(!confirm("Forget the key on this device? Your record stays on the server.")) return;
-      try{ localStorage.removeItem("iron-ledger-key"); }catch(e){}
+      /* The base and the name belong to that key; keep them and the next
+         person to unlock this device would merge against somebody else's
+         record and see somebody else's name. */
+      try{
+        localStorage.removeItem("iron-ledger-key");
+        localStorage.removeItem("iron-ledger-base");
+        localStorage.removeItem("iron-ledger-name");
+      }catch(e){}
       location.reload();
     };
   } else {
@@ -5289,18 +5351,23 @@ var SMode = (function(){
     else finish();
   }
 
-  function finish(){
-    /* Everything with all its sets in counts as ticked, so the card behind
-       agrees with what actually happened. */
-    /* Added to what is already ticked, never replacing it. It used to
-       overwrite, so anything ticked on the card before opening session mode
-       vanished if you then skipped through. */
+  /* Everything with all its sets in counts as ticked, so the card behind
+     agrees with what actually happened. Added to what is already ticked,
+     never replacing it — it used to overwrite, so anything ticked on the card
+     before opening session mode vanished if you then skipped through.
+     Called on Stop as well as Finish: Stop promised "what you've ticked is
+     kept" and kept nothing, because only Finish ever wrote the ticks. */
+  function commitTicks(){
+    if(!sk || !list.length) return;
     const ticks = (state.ticks[TODAY_K] || []).slice();
     list.forEach(function(w, n){
       const idx = workIndex(sk, w);
       if(idx > -1 && (setsDone[n] || 0) >= targetSets(w) && ticks.indexOf(idx) < 0) ticks.push(idx);
     });
     state.ticks[TODAY_K] = ticks;
+  }
+  function finish(){
+    commitTicks();
     /* There used to be a clean-up here that deleted any bell whose movement
        had no sets counted in session mode. It deleted real numbers: tap the
        bell, skip through, tick the card instead — the training happened, the
@@ -5338,6 +5405,7 @@ var SMode = (function(){
       Wake.set(true);
       render();
     },
+    commit: function(){ commitTicks(); save(); },
     close: function(){
       el("smode").setAttribute("data-on", "0");
       document.body.style.overflow = "";
@@ -5371,7 +5439,11 @@ var SMode = (function(){
 function wireSMOverlay(){
   const q = document.getElementById("sm-quit");
   if(q) q.addEventListener("click", function(){
-    if(confirm("Stop the session? What you've ticked is kept.")) SMode.close();
+    if(confirm("Stop the session? Anything you've finished is kept.")){
+      SMode.commit();
+      SMode.close();
+      renderAll();
+    }
   });
   const set = document.getElementById("sm-set");
   if(set) set.addEventListener("click", function(){ SMode.setDone(); });
@@ -5676,12 +5748,28 @@ var Notify = (function(){
   };
 })();
 
+/* A record arrived from the server. It used to be taken wholesale whenever it
+   was newer — so a session logged here offline, followed by anything a
+   Shortcut wrote before this phone got signal again, lost the session. Now:
+   if this device has changes the server hasn't seen, they are sent with the
+   base they started from and the server merges; only a device with nothing
+   of its own takes the server's copy as it is. */
 function adoptRemote(d){
-  const mine = (state && state.updatedAt) || 0;
-  const theirs = (d && d.updatedAt) || 0;
-  if(theirs < mine){ Store.push(); return; }   // ours is newer — send, don't take
+  if(Store.hasBase()){
+    if(Store.hasLocalChanges()){ Store.push(); return; }
+  } else {
+    /* No base yet — the first load after this change, or a new device. The
+       old rule, once, until there is a base to merge against. */
+    const mine = (state && state.updatedAt) || 0;
+    const theirs = (d && d.updatedAt) || 0;
+    if(theirs < mine){ Store.push(); return; }
+  }
+  adoptMerged(d);
+}
+function adoptMerged(d){
   state = Object.assign(JSON.parse(JSON.stringify(BLANK)), d);
   if(state.slot) DAY.slot = state.slot;   // a training time set on another device
+  Store.setBase(state);
   saveLocal();
   applyAppearance();
   renderAll();

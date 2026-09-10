@@ -14,6 +14,7 @@
 
 import { authorise } from "./_lib.js";
 import { loadFor, saveFor, userInfo } from "./_users.js";
+import { merge3 } from "./_merge.js";
 
 
 export default async function handler(req, res) {
@@ -39,9 +40,25 @@ export default async function handler(req, res) {
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         return res.status(400).json({ error: "bad_body" });
       }
-      await saveFor(auth.uid, body);
+      /* The app sends the version it last synced with alongside its copy.
+         If the server has moved on since — a Shortcut logged a session,
+         Health wrote sleep — the two are merged rather than the app's copy
+         being saved over the top. See _merge.js. An app that sends no base
+         (an old build still cached on a phone) is saved as before. */
+      const base = body._base && typeof body._base === "object" ? body._base : null;
+      delete body._base;
+      delete body.baseUpdatedAt;
+      let toSave = body, merged = false;
+      if (base) {
+        const current = await loadFor(auth.uid);
+        if (current && current.updatedAt !== base.updatedAt) {
+          toSave = merge3(base, body, current);
+          merged = true;
+        }
+      }
+      const saved = await saveFor(auth.uid, toSave);
       const who = await userInfo(auth.uid);
-      return res.status(200).json({ ok: true, name: who ? who.name : null });
+      return res.status(200).json({ ok: true, merged, state: saved, name: who ? who.name : null });
     }
 
     res.setHeader("Allow", "GET, PUT");
