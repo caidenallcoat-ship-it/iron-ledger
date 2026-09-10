@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-10T09:01:04.798Z";</script>
+<script>window.__BUILD__ = "2026-09-10T09:13:41.973Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -263,6 +263,15 @@
     padding:1px 4px;vertical-align:middle;white-space:nowrap}
   .lift-d{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:13.5px;
     font-variant-numeric:tabular-nums;color:var(--ink2);white-space:nowrap;text-align:right}
+  .lift-bells{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:0 22px 14px 57px;margin-top:-5px}
+  .lift-bells-lab{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--muted);margin-right:2px}
+  .lift-bells button{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;min-width:44px;
+    min-height:38px;padding:6px 10px;background:transparent;border:1px solid var(--line2);color:var(--ink2);
+    font-variant-numeric:tabular-nums;cursor:pointer}
+  .lift-bells button:hover{border-color:var(--ink);color:var(--ink)}
+  .lift-bells button[data-on="1"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
+  .lift-bells-last{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);margin-left:4px}
   .how{flex:none;font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
     letter-spacing:.09em;text-transform:uppercase;padding:5px 9px;border:1px solid var(--line2);
     background:transparent;color:var(--muted)}
@@ -808,6 +817,7 @@
     .lift-n{order:2;flex:1 1 auto;min-width:0}
     .lift-d{order:3;flex:0 0 auto;margin-left:auto;font-size:15px;color:var(--ink)}
     .how{order:4;flex:0 0 auto}
+    .lift-bells{padding:0 18px 14px 51px}
     .job{padding:15px 18px}
     .job-n{flex:1 1 100%}
     .box{padding:18px}
@@ -2349,21 +2359,36 @@ function areaCfg(){
    was lifted on a date; state.loads is the numbers already used for a
    movement, so after the first entry logging is a single tap. Nothing is
    required — an unlogged movement simply has no number, and is never nagged. */
-function loadPalette(name){ return (state.loads && state.loads[name]) || []; }
+function usedLoads(name){ return (state.loads && state.loads[name]) || []; }
+/* The bells you own, plus any other number used on this movement. It used to
+   be only numbers typed before, so the first time through every movement
+   offered nothing but "Set the bell" — after you had told the app exactly
+   which bells you have. */
+function loadPalette(name){
+  const owned = bellsOwned().map(String);
+  return owned.concat(usedLoads(name).filter(function(v){ return owned.indexOf(v) < 0; }));
+}
 function loadOn(k, name){ return (state.log && state.log[k] && state.log[k][name]) || ""; }
-function setLoad(name, v){
+/* Records without saving, for callers that save once at the end. */
+function putLoad(name, v){
   if(!state.log) state.log = {};
   const day = state.log[TODAY_K] || (state.log[TODAY_K] = {});
   if(v) day[name] = v; else delete day[name];
   if(!Object.keys(day).length) delete state.log[TODAY_K];
   if(v){
     if(!state.loads) state.loads = {};
-    const p = loadPalette(name).filter(function(x){ return x !== v; });
+    const p = usedLoads(name).filter(function(x){ return x !== v; });
     p.unshift(v);
     /* Four is more bells than anyone owns; the oldest falls off the row. */
     state.loads[name] = p.slice(0, 4);
   }
-  save();
+}
+function setLoad(name, v){ putLoad(name, v); save(); }
+/* With exactly one bell there is nothing to choose, so asking would be pure
+   friction: finishing the movement records it. More than one, you pick. */
+function autoBell(name){
+  if(!name || !oneBellOnly() || loadOn(TODAY_K, name)) return;
+  putLoad(name, String(heaviestBell()));
 }
 /* The most recent day before today that recorded this movement. */
 function lastLoad(name){
@@ -3455,6 +3480,19 @@ function cueHTML(id){
     +'<div class="cue-row" data-fault="1"><span class="cue-k">Watch for</span><p class="cue-v">'+c.fault+'</p></div>';
 }
 
+function bellRow(w){
+  const cur = loadOn(TODAY_K, w.n), prev = lastLoad(w.n);
+  const pal = loadPalette(w.n).slice();
+  if(prev && pal.indexOf(prev.load) < 0) pal.push(prev.load);
+  pal.sort(function(a, b){ return Number(a) - Number(b); });
+  return '<div class="lift-bells"><span class="lift-bells-lab">Bell</span>'
+    + pal.map(function(v){
+        return '<button type="button" data-bell="'+esc(v)+'" data-mv="'+esc(w.n)+'" data-on="'
+          + (v === cur ? 1 : 0) + '" aria-pressed="'+(v === cur)+'">'+esc(v)+'</button>';
+      }).join("")
+    + (prev && !cur ? '<span class="lift-bells-last">last time '+esc(prev.load)+'</span>' : "")
+    + '</div>';
+}
 function renderSession(){
   const host = document.getElementById("session"), note = document.getElementById("today-note");
   const sk = sessionToday(), week = weekNumber(), phase = dayPhase();
@@ -3477,12 +3515,18 @@ function renderSession(){
     const idx = workIndex(sk, w);
     const sets = expressMode ? Math.max(2, Math.ceil(setsFor(w,week)/2)) : setsFor(w,week);
     const on = ticked.indexOf(idx) > -1;
-    return '<li><div class="lift" role="checkbox" tabindex="0" aria-checked="'+on+'" data-i="'+idx+'">'
+    return '<li><div class="lift" role="checkbox" tabindex="0" aria-checked="'+on+'" data-i="'+idx+'"'
+      +(takesLoad(w) ? ' data-mv="'+esc(w.n)+'"' : "")+'>'
       +'<span class="tick"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8.5 6 12.5 14 3.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
       +'<span class="lift-n">'+w.n+(w.eased ? ' <span class="eased">eased</span>' : "")+'</span>'
       +'<span class="lift-d">'+sets+' × '+w.d+'</span>'
       +'<button class="how" type="button" data-cue="'+idx+'" aria-expanded="false" aria-controls="cue-'+idx+'">How</button>'
-      +'</div><div class="cue" id="cue-'+idx+'" hidden>'+cueHTML(w.cue)+'</div></li>';
+      +'</div>'
+      /* Which bell, on the card itself. The only place to record it used to be
+         inside session mode, so ticking the card left nowhere to put it — and
+         the 6kg ended up typed into the session note. */
+      +(takesLoad(w) && bellsOwned().length > 1 ? bellRow(w) : "")
+      +'<div class="cue" id="cue-'+idx+'" hidden>'+cueHTML(w.cue)+'</div></li>';
   }).join("");
 
   note.textContent = "Week "+week+" · "+PHASES[phaseFor(week).i].label+" · ~"+mins+" min";
@@ -3514,8 +3558,8 @@ function renderSession(){
              : '<button class="btn btn-ghost" type="button" id="skip-btn">I\'m skipping tonight</button>')
       +'<span class="act-note" id="tick-note">'+ticked.length+'/'+list.length+' ticked</span></div>'
     +(done ? '<div class="note-bar"><div class="field">'
-        +'<label for="load-note">What did you use?</label>'
-        +'<input id="load-note" type="text" maxlength="80" placeholder="20kg, last set was ugly" value="'
+        +'<label for="load-note">Anything to remember?</label>'
+        +'<input id="load-note" type="text" maxlength="80" placeholder="last set was ugly, left knee grumbled" value="'
         + esc(state.done[TODAY_K].note || "") + '">'
         +'<span class="note-last">Only for you to beat next time. Skip it if you like.</span>'
         +'</div><button class="btn" type="button" id="note-save">Save</button></div>' : "")
@@ -3539,6 +3583,7 @@ function wireSession(count){
       const at = cur.indexOf(i);
       if(at >= 0) cur.splice(at,1); else cur.push(i);
       state.ticks[TODAY_K] = cur;
+      if(at < 0) autoBell(b.dataset.mv);             // one bell: ticking it records it
       b.setAttribute("aria-checked", String(at < 0));
       document.getElementById("tick-note").textContent = cur.length+"/"+count+" ticked";
       if(at < 0) Rest.start(restSeconds());        // ticked ON — you've just finished a set
@@ -3549,6 +3594,14 @@ function wireSession(count){
     b.addEventListener("keydown", function(e){
       if(e.target.closest(".how")) return;
       if(e.key === " " || e.key === "Enter"){ e.preventDefault(); toggle(); }
+    });
+  });
+
+  document.querySelectorAll(".lift-bells [data-bell]").forEach(function(c){
+    c.addEventListener("click", function(){
+      const mv = c.dataset.mv, v = c.dataset.bell;
+      setLoad(mv, loadOn(TODAY_K, mv) === v ? "" : v);   // tap the lit one to clear a mis-tap
+      renderSession();
     });
   });
 
@@ -3920,8 +3973,34 @@ function nextBellUp(){
    is a month of hitting the number you set yourself — enough evidence that
    this is not a shopping impulse dressed up as training. */
 const KIT_AFTER_WEEKS = 4;
+/* This used to ask only people with a single bell, so the day a second one
+   turned up it could never fire again. With a 6 and an 8 the 6 runs out first
+   and then the 8 does — the real question is whether the heaviest bell is
+   the one doing the work, and the log answers that. */
+const KIT_HEAVIEST_USES = 6;
+function heaviestInUse(){
+  const h = String(heaviestBell());
+  let n = 0;
+  Object.keys(state.log || {}).forEach(function(k){
+    if(!state.done[k] || !state.log[k]) return;
+    Object.keys(state.log[k]).forEach(function(mv){ if(state.log[k][mv] === h) n++; });
+  });
+  return n;
+}
+/* "The load can't go up" is true of one bell, and just as true of two once
+   the heavier one is what you're using. Finding a 6kg next to the 8 must not
+   switch off the advice on how to make the 8 harder. */
+function loadCapped(){
+  return oneBellOnly() || (bellsOwned().length > 1 && heaviestInUse() >= KIT_HEAVIEST_USES);
+}
+/* Per movement: already on the heaviest bell, by today's log or last time's. */
+function onHeaviest(name){
+  const h = String(heaviestBell()), prev = lastLoad(name);
+  return oneBellOnly() || loadOn(TODAY_K, name) === h || (!!prev && prev.load === h);
+}
 function kitTaskDue(){
-  if(!oneBellOnly()) return null;
+  if(!bellsOwned().length) return null;
+  if(!oneBellOnly() && heaviestInUse() < KIT_HEAVIEST_USES) return null;
   const next = nextBellUp();
   if(!next) return null;
   if(state.kitAsked === next) return null;          // already asked, once, for this one
@@ -5327,7 +5406,7 @@ var SMode = (function(){
     /* With one bell the load phase says "take the harder version of anything
        that still feels easy" — so say what the harder version is, here, on
        the movement, rather than leaving it as an instruction with no content. */
-    const harder = oneBellOnly() && takesLoad(w) && phaseFor(weekNumber()).i >= 2
+    const harder = bellsOwned().length && takesLoad(w) && onHeaviest(w.n) && phaseFor(weekNumber()).i >= 2
       ? "<br><br><b>Too easy with the " + esc(String(heaviestBell())) + "?</b> " + esc(densityCue((w.base || w).n)) + "."
       : "";
     el("sm-cue").innerHTML = (cue
@@ -5377,7 +5456,10 @@ var SMode = (function(){
     const ticks = (state.ticks[TODAY_K] || []).slice();
     list.forEach(function(w, n){
       const idx = workIndex(sk, w);
-      if(idx > -1 && (setsDone[n] || 0) >= targetSets(w) && ticks.indexOf(idx) < 0) ticks.push(idx);
+      if(idx > -1 && (setsDone[n] || 0) >= targetSets(w)){
+        if(ticks.indexOf(idx) < 0) ticks.push(idx);
+        if(takesLoad(w)) autoBell(w.n);
+      }
     });
     state.ticks[TODAY_K] = ticks;
   }
@@ -5514,9 +5596,10 @@ function renderProgramme(){
   const ph = PHASES[p.i], bl = blockOf(week), loads = lastBlockLoads();
   /* Weeks 5-6 tell you to go heavier. With one bell that is not advice, it is
      a dead end, so the phase says what to do instead. */
-  const capped = oneBellOnly();
+  const capped = loadCapped();
+  const whyCapped = oneBellOnly() ? "You\u2019ve one bell" : "The " + heaviestBell() + " is already your heaviest";
   const phNote = (capped && p.i === 2)
-    ? "Extra set stays. You\u2019ve one bell, so the load can\u2019t go up \u2014 the reps do instead. "
+    ? "Extra set stays. " + whyCapped + ", so the load can\u2019t go up \u2014 the reps do instead. "
       + "Add two to every core movement, and take the harder version of anything that still feels easy."
     : (capped && p.i === 3)
       ? "Two extra sets on the core movements and rest cut to 60s. Then three easy days and start the "
