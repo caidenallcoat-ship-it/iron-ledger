@@ -87,7 +87,7 @@ explicit choice — do not soften it.
 
 ## Constraints
 
-- Home kit only. Caiden has one 8kg kettlebell, a push-up board and a rope;
+- Home kit only. Caiden has a 6kg and an 8kg kettlebell, a push-up board and a rope;
   other people's kit is in their record. No gym, no barbell.
 - Training time is `state.slot` in each person's record — Caiden's is 19:30.
   `DAY` at the top of the script only holds defaults for anything unset.
