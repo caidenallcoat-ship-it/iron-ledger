@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-10T08:31:08.069Z";</script>
+<script>window.__BUILD__ = "2026-09-10T08:36:01.721Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1330,7 +1330,7 @@ function lastBlockLoads(){
   const blockStart = key(addDays(parseKey(state.start), (b.n - 1) * BLOCK_WEEKS * 7));
   const latest = {};
   Object.keys(state.log).sort().forEach(function(k){
-    if(k >= blockStart) return;
+    if(k >= blockStart || !state.done[k]) return;
     Object.keys(state.log[k]).forEach(function(n){ latest[n] = state.log[k][n]; });
   });
   return Object.keys(latest).map(function(n){ return { n:n, load:latest[n] }; });
@@ -2318,8 +2318,11 @@ function setLoad(name, v){
 /* The most recent day before today that recorded this movement. */
 function lastLoad(name){
   if(!state.log) return null;
+  /* Only days a session was actually logged. A bell set on a day that was
+     then abandoned is not history, and this is where that is decided —
+     not by deleting it at the time. */
   const ks = Object.keys(state.log).filter(function(k){
-    return k < TODAY_K && state.log[k] && state.log[k][name];
+    return k < TODAY_K && state.log[k] && state.log[k][name] && state.done[k];
   }).sort();
   if(!ks.length) return null;
   return { load: state.log[ks[ks.length - 1]][name], date: ks[ks.length - 1] };
@@ -5289,16 +5292,21 @@ var SMode = (function(){
   function finish(){
     /* Everything with all its sets in counts as ticked, so the card behind
        agrees with what actually happened. */
-    const ticks = [];
+    /* Added to what is already ticked, never replacing it. It used to
+       overwrite, so anything ticked on the card before opening session mode
+       vanished if you then skipped through. */
+    const ticks = (state.ticks[TODAY_K] || []).slice();
     list.forEach(function(w, n){
-      if((setsDone[n] || 0) >= targetSets(w)) ticks.push(workIndex(sk, w));
+      const idx = workIndex(sk, w);
+      if(idx > -1 && (setsDone[n] || 0) >= targetSets(w) && ticks.indexOf(idx) < 0) ticks.push(idx);
     });
-    state.ticks[TODAY_K] = ticks.filter(function(x){ return x > -1; });
-    /* A bell tapped for a movement you then skipped isn't a record of
-       anything. Drop it rather than let it become next week's baseline. */
-    list.forEach(function(w, n){
-      if(!(setsDone[n] || 0) && loadOn(TODAY_K, w.n)) setLoad(w.n, "");
-    });
+    state.ticks[TODAY_K] = ticks;
+    /* There used to be a clean-up here that deleted any bell whose movement
+       had no sets counted in session mode. It deleted real numbers: tap the
+       bell, skip through, tick the card instead — the training happened, the
+       set counter just never saw it — and the week-one baseline was gone.
+       Nothing is deleted now. A bell only counts towards history on a day a
+       session was actually logged, which is decided when it is READ. */
     save();
     SMode.close();
     const btn = document.getElementById("log-btn");
