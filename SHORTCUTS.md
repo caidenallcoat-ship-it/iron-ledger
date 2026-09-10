@@ -77,12 +77,15 @@ phrase: *"what's outstanding?"*
 
 ## Your key
 
-It is the `LEDGER_KEY` environment variable in Vercel, the same one the app
-asks for. Anyone holding it can read and write your record, so keep the
-Shortcut private and don't share it.
+Use the same key you unlocked the app with. Everyone on the ledger has their
+own, and a Shortcut writes to whichever record its key belongs to — Archie's
+Shortcuts need Archie's key, not the owner's. (The owner's is the `LEDGER_KEY`
+environment variable in Vercel.) Anyone holding a key can read and write that
+record, so keep Shortcuts private and don't share them.
 
 Ten wrong keys from one address buys a 15-minute lockout, so a misconfigured
-Shortcut will stop itself rather than hammer the endpoint.
+Shortcut will stop itself rather than hammer the endpoint. A correct key
+always works, even from an address that is locked out.
 
 ## What this deliberately does not do
 
