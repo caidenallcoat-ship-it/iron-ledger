@@ -7,6 +7,16 @@ process.env.LEDGER_KEY = "k";
 process.env.KV_REST_API_URL = "http://example.invalid";
 process.env.KV_REST_API_TOKEN = "fake";
 
+/* Freeze the clock properly. Overriding Date.now alone does nothing to
+   `new Date()`, which is what localParts reads — so this test used to pass
+   only on the day it was written, and fail on every day after. */
+const FIXED = new Date("2026-09-09T12:00:00Z").getTime();
+const RealDate = Date;
+globalThis.Date = class extends RealDate {
+  constructor(...a) { super(...(a.length ? a : [FIXED])); }
+  static now() { return FIXED; }
+};
+
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log("  ok   " + name); }
@@ -50,8 +60,6 @@ const handler = (await import("./session.js")).default;
 // Freeze "today" to a known Wednesday so the week maths is checkable.
 const TODAY = "2026-09-09";
 const { localParts } = await import("./_lib.js");
-const realNow = Date.now;
-Date.now = () => new Date("2026-09-09T12:00:00Z").getTime();
 
 const call = async (method, body) => {
   const res = {
@@ -118,6 +126,6 @@ ok("GET says what is next without logging it", r.body.session === "B" && r.body.
 ok("GET names the session", r.body.name === "Wind", r.body.name);
 ok("GET does not change the record", Object.keys(read().done).length === 1);
 
-Date.now = realNow;
+globalThis.Date = RealDate;
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

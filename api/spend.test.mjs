@@ -2,6 +2,16 @@ process.env.LEDGER_KEY = "k";
 process.env.KV_REST_API_URL = "http://example.invalid";
 process.env.KV_REST_API_TOKEN = "fake";
 
+/* Freeze the clock properly. Overriding Date.now alone does nothing to
+   `new Date()`, which is what localParts reads — so this test used to pass
+   only on the day it was written, and fail on every day after. */
+const FIXED = new Date("2026-09-09T12:00:00Z").getTime();
+const RealDate = Date;
+globalThis.Date = class extends RealDate {
+  constructor(...a) { super(...(a.length ? a : [FIXED])); }
+  static now() { return FIXED; }
+};
+
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log("  ok   " + name); }
@@ -42,7 +52,6 @@ const read = () => JSON.parse(store.get(DOC));
 const seed = (rec) => store.set(DOC, JSON.stringify(rec));
 const handler = (await import("./spend.js")).default;
 const { readAmount } = await import("./spend.js");
-Date.now = () => new Date("2026-09-09T12:00:00Z").getTime();
 const TODAY = "2026-09-09";
 
 const call = async (method, body) => {

@@ -131,6 +131,14 @@ export async function createUser(name) {
   return { uid, key, name };
 }
 
+export async function renameUser(uid, name) {
+  const users = await readUsers();
+  if (!users[uid]) return false;
+  users[uid].name = String(name || "").slice(0, 40) || users[uid].name;
+  await redis(["HSET", USERS_HASH, uid, JSON.stringify(users[uid])]);
+  return true;
+}
+
 export async function removeUser(uid) {
   const users = await readUsers();
   if (!users[uid]) return false;

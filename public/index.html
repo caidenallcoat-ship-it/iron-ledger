@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-09T15:31:50.050Z";</script>
+<script>window.__BUILD__ = "2026-09-10T08:31:08.069Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -456,6 +456,13 @@
   .mate[data-met="1"] .mate-c{color:var(--done)}
   .mates-note{padding:12px 17px 14px;font-size:12.5px;line-height:1.6;color:var(--muted);
     border-top:1px solid var(--line)}
+  .aboutyou{border:1px solid var(--line);border-left:3px solid var(--warn);background:var(--surface);
+    padding:15px 17px}
+  .aboutyou h4{font-family:"Archivo",sans-serif;font-size:15.5px;font-weight:600;color:var(--ink)}
+  .aboutyou > p{font-size:12.5px;line-height:1.6;color:var(--muted);margin-top:7px}
+  .aboutyou .setup-q{padding:12px 0 0;border:0}
+  .aboutyou .setup-q h4{font-size:13.5px}
+  .aboutyou .actions{margin-top:14px}
   .reweigh{border:1px solid var(--line);border-left:3px solid var(--warn);
     background:var(--surface);padding:15px 17px}
   .reweigh h4{font-family:"Archivo",sans-serif;font-size:15.5px;font-weight:600;color:var(--ink)}
@@ -855,7 +862,7 @@
       </svg>
       <div class="hub">
         <div class="hub-when" id="hub-when">GOOD EVENING</div>
-        <div class="hub-name">Caiden</div>
+        <div class="hub-name" id="hub-name"></div>
         <div class="hub-rule"></div>
         <div class="hub-rank" id="hub-rank"></div>
         <div class="hub-sess" id="hub-sess"></div>
@@ -893,6 +900,7 @@
     <section class="clock" id="clock"></section>
 
     <p class="faults" id="faults" hidden></p>
+    <div class="aboutyou" id="aboutyou" hidden></div>
     <div class="reweigh" id="reweigh" hidden></div>
     <div class="mates" id="mates" hidden></div>
 
@@ -1002,6 +1010,10 @@
         <div class="eyebrow" style="margin-bottom:8px">You</div>
         <div class="field-row" id="body-fields"></div>
         <p class="sec-note" id="body-note" style="margin-top:8px"></p>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Your day and your kit</div>
+        <div id="daykit-opts"></div>
       </div>
       <div>
         <div class="eyebrow" style="margin-bottom:8px">Where you're starting</div>
@@ -1184,6 +1196,14 @@ const CUES = {
     setup:"Stand tall, arms bent, somewhere you can see a clock.",
     doIt:"Drive one knee up to hip height, then the other, arms swinging naturally. Keep it brisk enough that talking gets awkward. <b>Both feet never leave the floor at once</b>, which is the entire point — you get the heart rate without the landing.",
     fault:"Drifting into a stroll once it gets uncomfortable. The pace is the exercise. If your knees are not coming up, slow the arms down and lift them properly instead."},
+  pushFloor:{name:"Push-ups on the floor",kit:"Floor",
+    setup:"Hands on the floor a little wider than your shoulders, fingers spread. Walk your feet back until you're one straight line from ear to heel.",
+    doIt:"Lower your chest to a fist's height off the floor, elbows travelling back at about 45°, then press. <b>Squeeze your glutes</b> and the line looks after itself. Close hands move it onto the triceps; wide hands onto the chest; hips high in a pike puts it on the shoulders.",
+    fault:"Half reps. If you can't get your chest low, drop to your knees and do the whole rep — <b>full range on your knees beats half a rep on your toes</b>."},
+  plankFloor:{name:"Plank on your forearms",kit:"Floor",
+    setup:"Forearms on the floor, elbows under your shoulders, hands together or flat. Feet hip-width.",
+    doIt:"Lift into one straight line from head to heel and hold it. Pull your ribs down towards your hips and <b>squeeze your glutes</b> — it should feel like your whole front is working, not your lower back.",
+    fault:"Hips sagging or the backside in the air. The moment the line goes, the set is over — <b>a good 20 seconds beats a bad 45</b>."},
   pushRed:{name:"Push-up board — red (chest)",kit:"Board",
     setup:"Hands in the red slots, roughly at the width where your forearms end up vertical at the bottom.",
     doIt:"One straight line from ear to heel — <b>squeeze your glutes</b>, that's the trick. Elbows travel back at about 45° from your body. Lower until your chest is just above the board, then press.",
@@ -1396,6 +1416,10 @@ const BLANK = {
   level:null,       // 0 building up | 1 getting there | 2 as written
   driftSeen:null,   // the suggestion you've already said no to, so it stops asking
   impact:null,      // "low" | "normal" — jumping and skipping, or not
+  daytime:null,     // "work" | "study" | "home" | "varies" — what fills a weekday
+  homeBy:null,      // hour you are usually home, for work and study
+  kit:null,         // {board:bool, rope:bool} — what you actually have
+  name:null,        // only used when there is no server to ask
   claims:[],         // [{d, id, name, cost}] — everything ever claimed
   rewards:[],        // [{id, name, cost}] — rewards you wrote yourself
   onboarded:false, goal:null, slot:null
@@ -1671,8 +1695,8 @@ const LOW_FIN = {
   D:"200 fast steps on the spot",
   E:"3 × 60s marching"
 };
-function warmFor(sk){ return lowImpact() ? (LOW_WARM[sk] || SESSIONS[sk].warm) : SESSIONS[sk].warm; }
-function finFor(sk){ return lowImpact() ? (LOW_FIN[sk] || SESSIONS[sk].fin) : SESSIONS[sk].fin; }
+function warmFor(sk){ return (lowImpact() || !hasRope()) ? (LOW_WARM[sk] || SESSIONS[sk].warm) : SESSIONS[sk].warm; }
+function finFor(sk){ return (lowImpact() || !hasRope()) ? (LOW_FIN[sk] || SESSIONS[sk].fin) : SESSIONS[sk].fin; }
 /* Easier form first. An entry replaces the name, dose, cue and sets. */
 const REGRESS = {
   "Push-up board — red (chest)": [
@@ -1712,16 +1736,23 @@ const IMPACT_SWAP = {
   "Rope intervals": {n:"March on the spot, 60s rope at the end", d:"90s", sets:4, cue:"march"}
 };
 function atLevel(w){
-  if(lowImpact() && IMPACT_SWAP[w.n]){
-    return Object.assign({}, w, IMPACT_SWAP[w.n], { base:w, eased:true });
+  /* Rope work goes if impact is low OR there is no rope; burpees only on
+     impact, since they need nothing but a floor. */
+  const ropeGone = w.n === "Rope intervals" && (lowImpact() || !hasRope());
+  const burpeeGone = w.n === "Burpees" && lowImpact();
+  if((ropeGone || burpeeGone) && IMPACT_SWAP[w.n]){
+    return Object.assign({}, w, IMPACT_SWAP[w.n], { base:w, eased: lowImpact() });
   }
+  let out = w;
   const lv = startLevel();
-  if(lv >= 2) return w;
   const r = REGRESS[w.n];
-  if(!r) return w;
-  const pick = r[lv];
-  if(!pick) return w;
-  return Object.assign({}, w, pick, { base:w, eased:true });
+  if(lv < 2 && r && r[lv]) out = Object.assign({}, w, r[lv], { base:w, eased:true });
+  /* Then the kit: anything that still names the board, when there isn't one.
+     Applied after the level so a knee push-up stays a knee push-up. */
+  if(!hasBoard() && NO_BOARD[out.n]){
+    out = Object.assign({}, out, NO_BOARD[out.n], { base:w, eased: !!out.eased });
+  }
+  return out;
 }
 /* Where a scaled item sits in the written programme. */
 function workIndex(sk, w){ return SESSIONS[sk].work.indexOf(w.base || w); }
@@ -2151,6 +2182,66 @@ function easyDayEarned(){
   return freeEveningsAfterToday() >= owed;       // the week survives without tonight
 }
 
+/* ---------- whose life this is ----------
+   The app was written around one person: a 9-to-5, home at six, a
+   colour-coded push-up board and a skipping rope. Put a second person on the
+   ledger and all of that was simply wrong for them — the ring said somebody
+   else's name, the day told a student he was at work, and at half five, when
+   he was meant to be training, it told him he was on his commute. */
+
+function myName(){
+  try{ const n = localStorage.getItem("iron-ledger-name"); if(n) return n; }catch(e){}
+  return state.name || "";
+}
+function setMyName(n){
+  n = String(n || "").trim().slice(0, 40);
+  try{ if(n) localStorage.setItem("iron-ledger-name", n); else localStorage.removeItem("iron-ledger-name"); }catch(e){}
+}
+
+const DAYTIMES = [["work","Work"],["study","Uni or college"],["home","Home most of the day"],["varies","It varies — shifts"]];
+function daytime(){ return ["work","study","home","varies"].indexOf(state.daytime) > -1 ? state.daytime : "work"; }
+
+/* Every boundary hangs off the training time rather than a fixed clock, so
+   the day reads right whatever it looks like. */
+function dayShape(){
+  const kind = daytime(), slot = DAY.slot;
+  const tied = kind === "work" || kind === "study";
+  const home = isFinite(Number(state.homeBy)) && state.homeBy !== null
+    ? Number(state.homeBy) : (kind === "study" ? 16 : DAY.home);
+  const ready = tied ? Math.min(home, slot - 0.5) : slot - 1.5;
+  return {
+    kind: kind, tied: tied, slot: slot, ready: ready,
+    start: tied ? DAY.workStart : null,
+    end: tied ? Math.max(DAY.workStart + 1, ready - 1) : null,
+    lastStart: Math.max(DAY.lastStart, slot + 2)
+  };
+}
+function whereYouAre(){
+  return { work:"at work", study:"at uni", home:"getting on with your day", varies:"on shift or getting on with your day" }[daytime()];
+}
+
+/* Missing kit changes the movement, not the difficulty, so none of this is
+   marked as eased. An unanswered question means the original kit — that
+   keeps every existing record exactly as it was until someone says otherwise. */
+function hasBoard(){ return !state.kit || state.kit.board !== false; }
+function hasRope(){ return !state.kit || state.kit.rope !== false; }
+/* Owning a rope and using one are different: low impact takes it out of the
+   programme, so the copy should stop telling you to get it out. */
+function usesRope(){ return hasRope() && !lowImpact(); }
+function kitWords(){
+  return usesRope() ? "the bell and the rope" : "the bell";
+}
+const NO_BOARD = {
+  "Push-up board — red (chest)":           {n:"Push-ups", cue:"pushFloor"},
+  "Push-up board — blue (triceps)":        {n:"Push-ups — hands close", cue:"pushFloor"},
+  "Push-up board — green (wide)":          {n:"Push-ups — hands wide", cue:"pushFloor"},
+  "Board circuit — red, blue, yellow, green": {n:"Push-up circuit — normal, close, wide, pike", d:"6 each", cue:"pushFloor"},
+  "Plank on the handles":                  {n:"Plank on your forearms", cue:"plankFloor"}
+};
+function aboutYouAnswered(){
+  return state.daytime !== null && state.daytime !== undefined && state.kit !== null && state.kit !== undefined;
+}
+
 function freeEveningsLeft(){
   let n = 0;
   const mon = mondayOf(TODAY);
@@ -2345,15 +2436,21 @@ function nextDueText(bare){
 }
 function dayPhase(){
   if(!isWorkday(TODAY)) return NOW_H < DAY.weekendSlot ? "weekendEarly" : "weekend";
-  if(NOW_H < DAY.workStart) return "preWork";
-  if(NOW_H < DAY.workEnd)   return "atWork";
-  if(NOW_H < DAY.home)      return "commute";
-  if(NOW_H < 20)            return "window";
-  if(NOW_H < DAY.lastStart) return "late";
+  const d = dayShape();
+  if(d.tied){
+    if(NOW_H < d.start) return "preWork";
+    if(NOW_H < d.end)   return "atWork";
+  } else if(NOW_H < d.ready) return "atWork";
+  if(NOW_H < d.ready)       return "commute";
+  /* Was a fixed 20:00, which only worked because one person trained at
+     half seven. The window is now the hour and a half either side of the
+     slot, whoever's slot it is. */
+  if(NOW_H < d.slot + 1)    return "window";
+  if(NOW_H < d.lastStart)   return "late";
   if(NOW_H < 23.5)          return "lastCall";
   return "over";
 }
-function minsLeftTonight(){ return Math.max(0, Math.round((DAY.lastStart - NOW_H)*60)); }
+function minsLeftTonight(){ return Math.max(0, Math.round((dayShape().lastStart - NOW_H)*60)); }
 
 /* ---------- the nag ---------- */
 function verdict(){
@@ -2420,7 +2517,7 @@ function verdict(){
   if(total === 0 && daysIn() <= 1){
     return {sev:"warn", eyebrow:"Nothing logged",
       line:"Day one — Session "+sk+", "+s.name+", "+mins+" minutes.",
-      sub:"Your slot is <b>"+fmtH(DAY.slot)+"</b>, half an hour after you get through the door. The target is <b>"+plural(tgt,"session")+" a week</b> on any days that suit — the five sessions run in a cycle, so nothing gets skipped."};
+      sub:"Your slot is <b>"+fmtH(DAY.slot)+"</b>. The target is <b>"+plural(tgt,"session")+" a week</b> on any days that suit — the five sessions run in a cycle, so nothing gets skipped."};
   }
 
   /* Week already cleared: nothing is owed, and saying otherwise would teach
@@ -2480,16 +2577,19 @@ function verdict(){
   switch(phase){
     case "preWork":
       return Object.assign({},warn,{line:s.name+" tonight. "+mins+" minutes, from "+fmtH(DAY.slot)+".",
-        sub:"Decided now, not at six. Leave the bell and the rope somewhere you'll trip over them when you walk in."+streakLine});
+        sub:"Decided now, not at "+fmtH(dayShape().ready)+". Leave "+kitWords()+" somewhere you'll trip over "
+          +(usesRope() ? "them" : "it")+(dayShape().tied ? " when you walk in." : ".")+streakLine});
     case "atWork":
       return Object.assign({},warn,{line:s.name+" at "+fmtH(DAY.slot)+". "+mins+" minutes.",
-        sub:"You're at work, so there's nothing to do about it yet — which is exactly why there's nothing to negotiate either. Home at "+fmtH(DAY.home)+", changed by "+fmtH(DAY.slot)+", finished by "+fmtH(DAY.slot+mins/60)+"."+streakLine});
+        sub:"You're "+whereYouAre()+", so there's nothing to do about it yet — which is exactly why there's nothing to negotiate either. "
+          +(dayShape().tied ? "Home at "+fmtH(dayShape().ready)+", changed" : "Changed")
+          +" by "+fmtH(DAY.slot)+", finished by "+fmtH(DAY.slot+mins/60)+"."+streakLine});
     case "commute":
       return Object.assign({},warn,{line:"Kit on before you sit down.",
         sub:"This is the hour it gets lost in. Once you're on the sofa with your shoes on, "+s.name+" isn't happening. <b>Change first, eat after.</b> "+mins+" minutes and you're done by "+fmtH(DAY.slot+mins/60)+"."+streakLine});
     case "window":
       return Object.assign({},warn,{line:"It's "+fmtH(NOW_H)+". This is the window.",
-        sub:s.name+" — "+mins+" minutes. You're not tired, you're seated. Stand up, put the rope on the floor, start the warm-up."+streakLine});
+        sub:s.name+" — "+mins+" minutes. You're not tired, you're seated. Stand up, "+(usesRope() ? "put the rope on the floor" : "get the bell out")+", start the warm-up."+streakLine});
     case "late":
       return {sev:"bad", eyebrow:minsLeftTonight()+" minutes left", line:"It's "+fmtH(NOW_H)+" and "+s.name+" isn't done.",
         sub:"You've talked yourself right to the edge of the evening. The full session is "+mins+" minutes — but the <b>"+exMins+"-minute short version</b> is below, and it counts towards the week. Take that deal."};
@@ -2548,8 +2648,16 @@ function renderClock(){
   } else {
     const mins = sk ? minutesFor(sk,week,false) : 0;
     slots = [
-      {t:fmtH(DAY.workStart)+"–"+fmtH(DAY.workEnd), l:"At work. Nothing to decide.", p:["preWork","atWork"]},
-      {t:fmtH(DAY.workEnd)+"–"+fmtH(DAY.home), l:"Commute. Kit out before you sit down.", p:["commute"]},
+      ...(function(){
+        const d = dayShape();
+        if(!d.tied) return [
+          {t:"Until "+fmtH(d.ready), l:"The day's yours. Nothing to decide.", p:["preWork","atWork"]},
+          {t:fmtH(d.ready)+"–"+fmtH(d.slot), l:"Kit out before you sit down.", p:["commute"]}];
+        const where = d.kind === "study" ? "Uni" : "At work";
+        return [
+          {t:fmtH(d.start)+"–"+fmtH(d.end), l:where+". Nothing to decide.", p:["preWork","atWork"]},
+          {t:fmtH(d.end)+"–"+fmtH(d.ready), l:"On the way back. Kit out before you sit down.", p:["commute"]}];
+      })(),
       {t:fmtH(DAY.slot), l: sk ? SESSIONS[sk].name+" — "+mins+" min" : "No session. Walk instead.", p:["window"]},
       {t:fmtH(DAY.slot+mins/60)+"+", l: sk ? "Eat, shower, log it." : "Rest day earned.", p:["late","lastCall","over"]}
     ];
@@ -2630,6 +2738,10 @@ var Mates = (function(){
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
         rows = (d && Array.isArray(d.people)) ? d.people : null;
+        /* The roster knows who this key belongs to. Remember it, so the ring
+           has a name on the next load before the network has answered. */
+        const me = rows && rows.filter(function(r){ return r.you; })[0];
+        if(me && me.name && me.name !== myName()){ setMyName(me.name); renderRing(); }
         at = Date.now();
       })
       .catch(function(){ /* offline is not an error worth shouting about */ })
@@ -2666,6 +2778,70 @@ function renderMates(){
      adding a listener each time is how one tap became several sets in session
      mode. Assigning replaces rather than stacks. */
   host.onclick = function(){ Mates.load(true); };
+}
+
+/* Questions that only make sense once there is more than one kind of person
+   on the ledger. Asked in setup for anyone new; asked here, once, for anyone
+   who set up before they existed — nobody has to start again. Until they are
+   answered the app behaves exactly as it did. */
+let aboutDraft = null;
+function aboutYouHTML(d){
+  const opt = function(q, v, label, on){
+    return '<button class="setup-opt" type="button" data-ay="' + q + '" data-v="' + v + '" aria-pressed="' + on + '">' + label + '</button>';
+  };
+  const tied = d.daytime === "work" || d.daytime === "study";
+  return '<div class="setup-q"><h4>What fills your weekdays?</h4><div class="setup-opts">'
+      + DAYTIMES.map(function(o){ return opt("daytime", o[0], o[1], d.daytime === o[0]); }).join("")
+    + '</div></div>'
+    + (tied
+        ? '<div class="setup-q"><h4>When are you usually home?</h4><div class="setup-opts">'
+          + [15,16,17,18,19].map(function(h){ return opt("homeBy", h, fmtH(h), Number(d.homeBy) === h); }).join("")
+          + '</div></div>'
+        : "")
+    + '<div class="setup-q"><h4>Have you got a push-up board with handles?</h4><div class="setup-opts">'
+      + opt("board", "yes", "Yes", d.board === true) + opt("board", "no", "No, just the floor", d.board === false)
+    + '</div></div>'
+    + '<div class="setup-q"><h4>A skipping rope?</h4><div class="setup-opts">'
+      + opt("rope", "yes", "Yes", d.rope === true) + opt("rope", "no", "No", d.rope === false)
+    + '</div></div>';
+}
+function wireAboutYou(host, draft, redraw){
+  host.querySelectorAll("[data-ay]").forEach(function(b){
+    b.addEventListener("click", function(){
+      const q = b.dataset.ay, v = b.dataset.v;
+      if(q === "board" || q === "rope") draft[q] = v === "yes";
+      else if(q === "homeBy") draft.homeBy = Number(v);
+      else draft[q] = v;
+      redraw();
+    });
+  });
+}
+function commitAboutYou(d){
+  state.daytime = d.daytime || "work";
+  state.homeBy = (d.daytime === "work" || d.daytime === "study") && d.homeBy ? d.homeBy : null;
+  state.kit = { board: d.board !== false, rope: d.rope !== false };
+}
+function renderAboutYou(){
+  const host = document.getElementById("aboutyou");
+  if(!host) return;
+  host.hidden = aboutYouAnswered() || !state.onboarded;
+  if(host.hidden) return;
+  if(!aboutDraft) aboutDraft = { daytime:null, homeBy:null, board:null, rope:null };
+  const d = aboutDraft;
+  const ready = d.daytime && d.board !== null && d.rope !== null
+    && (!(d.daytime === "work" || d.daytime === "study") || d.homeBy);
+  const who = myName();
+  host.innerHTML =
+    '<h4>' + (who ? esc(who) + ", three" : "Three") + ' quick questions</h4>'
+    + '<p>So the day and the kit in here are yours. Until you answer, it assumes a nine-to-five and a push-up board with a rope.</p>'
+    + aboutYouHTML(d)
+    + '<div class="actions"><button class="btn btn-primary" type="button" id="ay-save"'
+      + (ready ? "" : " disabled") + '>Save</button></div>';
+  wireAboutYou(host, d, renderAboutYou);
+  const b = document.getElementById("ay-save");
+  if(b) b.addEventListener("click", function(){
+    commitAboutYou(d); aboutDraft = null; save(); renderAll();
+  });
 }
 
 function renderReweigh(){
@@ -3246,7 +3422,7 @@ function renderSession(){
       +'<span class="chip" data-v="'+(done?"done":"due")+'">'
       +(done ? "Complete" : expressMode ? "Short version" : "Due "+(isWorkday(TODAY)?fmtH(DAY.slot):fmtH(DAY.weekendSlot)))+'</span></div>'
     +'<div class="strip"><b>Warm-up</b><span>'
-      +(expressMode ? (lowImpact() ? "2 min marching, straight in" : "2 min rope, straight in") : warmFor(sk))+'</span></div>'
+      +(expressMode ? ((lowImpact() || !hasRope()) ? "2 min marching, straight in" : "2 min rope, straight in") : warmFor(sk))+'</span></div>'
     +(function(){
         const ln = lastNoteFor(sk);
         return ln ? '<div class="note-shown">LAST TIME ('+esc(parseKey(ln.date).toLocaleDateString(undefined,{day:"numeric",month:"short"}))+') — '+esc(ln.note)+'</div>' : "";
@@ -4207,6 +4383,9 @@ function renderRing(){
   if(!ringNodes) return;
 
   document.getElementById("hub-when").textContent = greeting().toUpperCase();
+  /* This said "Caiden" in the markup, so everybody's ring said Caiden. */
+  const hn = document.getElementById("hub-name");
+  if(hn){ hn.textContent = myName(); hn.hidden = !myName(); }
 
   /* The rank, in the middle of the ring, with the groove filling towards the
      next one. Same two numbers as the panel further down — this is the glance
@@ -4667,6 +4846,7 @@ function renderSetup(){
 
   const body = document.getElementById("setup-body");
   const s = suggestion();
+  if(!setupAnswers.about) setupAnswers.about = { daytime:null, homeBy:null, board:null, rope:null };
   body.innerHTML =
     '<div class="setup-q"><h4>A bit about you</h4>'
       + '<p>So the first session is one you can actually finish. Leave it blank if you\u2019d rather not \u2014 nothing is guessed from an empty box.</p>'
@@ -4687,6 +4867,9 @@ function renderSetup(){
             + ' are already picked below. Change either if that\u2019s wrong.</p>'
           : "")
     + '</div>'
+    + '<div class="setup-q setup-about"><h4>Your day and your kit</h4>'
+      + '<p>So the evening copy fits your life rather than a nine-to-five, and the programme only uses kit you actually own.</p>'
+      + aboutYouHTML(setupAnswers.about) + '</div>'
     + SETUP_Q.map(function(q){
     return '<div class="setup-q"><h4>' + q.h + '</h4><p>' + q.p + '</p>'
       + '<div class="setup-opts">' + q.opts.map(function(o){
@@ -4713,6 +4896,8 @@ function renderSetup(){
     });
   });
 
+  wireAboutYou(body.querySelector(".setup-about"), setupAnswers.about, renderSetup);
+
   body.querySelectorAll("[data-q]").forEach(function(b){
     b.addEventListener("click", function(){
       setupAnswers[b.dataset.q] = b.dataset.v;
@@ -4723,6 +4908,11 @@ function renderSetup(){
   document.getElementById("setup-done").addEventListener("click", function(){
     if(setupAnswers.goal){ state.goal = setupAnswers.goal; applyGoalFocus(); }
     commitSetupBody();
+    /* Unanswered kit questions are left unanswered rather than guessed, so
+       the card on the training page picks them up. */
+    if(setupAnswers.about.daytime && setupAnswers.about.board !== null && setupAnswers.about.rope !== null){
+      commitAboutYou(setupAnswers.about);
+    }
     /* Whatever is showing as chosen is what gets saved, suggestion included —
        otherwise tapping straight through would leave the programme on a
        default the app had already decided was wrong. */
@@ -4898,7 +5088,9 @@ function renderBody(){
       + '<input id="b-w" type="number" min="20" max="400" step="0.1" value="' + (w ? w.kg : "") + '"></div>'
     + '<div class="field grow"><label for="b-bells">Kettlebells you own (kg)</label>'
       + '<input id="b-bells" type="text" inputmode="numeric" placeholder="8, or 16 and 24"'
-      + ' value="' + esc(bellsOwned().join(", ")) + '"></div>';
+      + ' value="' + esc(bellsOwned().join(", ")) + '"></div>'
+    + '<div class="field grow"><label for="b-name">Your name</label>'
+      + '<input id="b-name" type="text" maxlength="40" value="' + esc(myName()) + '"></div>';
 
   const age = ageNow(), bmi = bmiNow();
   note.textContent = (age ? age + " years old. " : "")
@@ -4920,6 +5112,15 @@ function renderBody(){
     const n = Number(kg);
     if(kg !== "" && isFinite(n) && n >= 20 && n <= 400){
       weightLog()[TODAY_K] = Math.round(n * 10) / 10;
+    }
+    const nm = String(document.getElementById("b-name").value || "").trim();
+    if(nm && nm !== myName()){
+      setMyName(nm);
+      state.name = nm;
+      let k = ""; try{ k = localStorage.getItem("iron-ledger-key") || ""; }catch(e){}
+      if(k) fetch("/api/people", {method:"PATCH",
+        headers:{"x-ledger-key":k, "Content-Type":"application/json"},
+        body:JSON.stringify({name:nm})}).then(function(){ Mates.load(true); }).catch(function(){});
     }
     const bells = String(document.getElementById("b-bells").value || "")
       .split(/[^0-9.]+/).filter(Boolean).map(Number);
@@ -4944,6 +5145,18 @@ function renderImpactPicker(){
     + (!chosen && s.why ? "Chosen for you because " + s.why + " \u2014 change it if that's wrong." : "");
   host.querySelectorAll("[data-im]").forEach(function(b){
     b.addEventListener("click", function(){ state.impact = b.dataset.im; save(); renderAll(); });
+  });
+}
+
+function renderDayKit(){
+  const host = document.getElementById("daykit-opts");
+  if(!host) return;
+  const d = { daytime: state.daytime || "work", homeBy: state.homeBy,
+              board: hasBoard(), rope: hasRope() };
+  host.innerHTML = aboutYouHTML(d);
+  wireAboutYou(host, d, function(){
+    if((d.daytime === "work" || d.daytime === "study") && !d.homeBy) d.homeBy = d.daytime === "study" ? 16 : 18;
+    commitAboutYou(d); save(); renderAll();
   });
 }
 
@@ -5253,6 +5466,7 @@ function renderAll(){
   renderFaults = [];
   draw("masthead", renderMasthead); draw("clock", renderClock);
   draw("verdict", renderVerdict);   draw("rank", renderRank);
+  draw("about you", renderAboutYou);
   draw("mates", renderMates);
   draw("kit", maybeAskForKit);
   draw("re-weigh", renderReweigh);
@@ -5270,6 +5484,7 @@ function renderAll(){
   draw("calendar", renderCal); draw("ledger", renderLedger); draw("programme", renderProgramme);
   draw("appearance", renderAppearance);
   draw("you", renderBody);
+  draw("day and kit", renderDayKit);
   draw("level", renderLevelPicker);
   draw("impact", renderImpactPicker);
   draw("goal", renderGoal);

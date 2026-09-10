@@ -1,17 +1,19 @@
 /**
  * GET    /api/people            -> who is on this ledger
- * POST   /api/people {name}     -> add someone, returns their key ONCE
- * DELETE /api/people {uid}      -> remove someone and their record
+ * PATCH  /api/people {name}     -> change your OWN name (anyone)
+ * POST   /api/people {name}     -> add someone, returns their key ONCE (owner)
+ * DELETE /api/people {uid}      -> remove someone and their record (owner)
  *
- * Owner only. Whoever holds LEDGER_KEY is the owner; everyone else can use
- * the app and see who else is on it, but cannot mint keys or delete anyone.
+ * Whoever holds LEDGER_KEY is the owner; everyone else can use the app, see
+ * who else is on it and rename themselves, but cannot mint keys or delete
+ * anyone.
  *
  * The key is shown exactly once, at creation, because only its hash is
  * stored. If it is lost the person gets a new one — there is nothing to
  * recover, which is the point.
  */
 import { authorise } from "./_lib.js";
-import { listUsers, userInfo, createUser, removeUser, loadFor } from "./_users.js";
+import { listUsers, userInfo, createUser, removeUser, renameUser, loadFor } from "./_users.js";
 
 function mondayOf(key) {
   const [y, m, d] = key.split("-").map(Number);
@@ -64,13 +66,27 @@ export default async function handler(req, res) {
       return res.status(200).json({ week: monday, people: rows });
     }
 
-    if (!isOwner) return res.status(403).json({ error: "owner_only" });
-
     let body = req.body;
     if (typeof body === "string") {
       try { body = JSON.parse(body); } catch { return res.status(400).json({ error: "bad_json" }); }
     }
     body = body || {};
+
+    /* Anyone can change what they are called. The owner names you when you
+       are added, but it is your name, and a ring that says the wrong one is
+       the first thing that makes an app feel like somebody else's. */
+    if (req.method === "PATCH") {
+      const name = String(body.name || "").trim().slice(0, 40);
+      if (!name) return res.status(400).json({ error: "name_required" });
+      const people = await listUsers();
+      if (people.some((p) => p.uid !== auth.uid && p.name.toLowerCase() === name.toLowerCase())) {
+        return res.status(409).json({ error: "name_taken" });
+      }
+      await renameUser(auth.uid, name);
+      return res.status(200).json({ ok: true, name });
+    }
+
+    if (!isOwner) return res.status(403).json({ error: "owner_only" });
 
     if (req.method === "POST") {
       const name = String(body.name || "").trim().slice(0, 40);
@@ -96,7 +112,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, removed: uid });
     }
 
-    res.setHeader("Allow", "GET, POST, DELETE");
+    res.setHeader("Allow", "GET, PATCH, POST, DELETE");
     return res.status(405).json({ error: "method_not_allowed" });
   } catch (err) {
     return res.status(502).json({ error: "people_failed", detail: String(err.message || err) });
