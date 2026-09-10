@@ -1,7 +1,8 @@
 /**
  * POST   /api/session  { express?, note?, date? }  -> log a session
  * DELETE /api/session  { date? }                   -> unlog one
- * GET    /api/session                              -> what is next, and the week
+ * GET    /api/session                              -> what is next, the week, and
+ *                                                    whether tonight is still owed
  *
  * The hole this fills: everything else could read training and nothing could
  * record it. A watch finishing a workout, a Siri phrase on the way to the
@@ -12,7 +13,7 @@
  * rotating queue, so which session comes next is a fact about the record, not
  * something an automation should be able to assert.
  */
-import { authorise, localParts, SESSIONS, nextSessionKey } from "./_lib.js";
+import { authorise, localParts, SESSIONS, nextSessionKey, tonight } from "./_lib.js";
 import { loadFor, saveFor } from "./_users.js";
 
 function mondayOf(key) {
@@ -50,7 +51,13 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const rec = done[today] || null;
       const key = rec ? rec.key : nextSessionKey(done);
+      /* owed / why / line are for the phone lock (SHORTCUTS.md): whether
+         tonight still counts, as a plain word a Shortcut can compare. */
+      const t = tonight(state, today);
       return res.status(200).json({
+        owed: t.owed,
+        why: t.why,
+        line: t.line,
         date: today,
         loggedToday: Boolean(rec),
         session: key,

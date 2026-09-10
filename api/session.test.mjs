@@ -77,6 +77,16 @@ const reset = (done = {}) => {
   seed({ start: "2026-09-07", done, skips: [], ticks: {}, target: 3, daily: {}, updatedAt: 1 });
 };
 
+console.log("the phone lock's question");
+reset();
+let g = await call("GET");
+ok("GET says tonight is owed with nothing logged", g.body.owed === true && g.body.why === "owed", JSON.stringify(g.body));
+ok("with a line fit for an alert", typeof g.body.line === "string" && /isn't done/.test(g.body.line), g.body.line);
+reset({ [TODAY]: { key: "A", at: "x", express: false } });
+g = await call("GET");
+ok("and not owed once it's logged", g.body.owed === false && g.body.why === "trained", JSON.stringify(g.body));
+
+console.log("");
 console.log("logging a session from outside the app");
 reset();
 let r = await call("POST", {});

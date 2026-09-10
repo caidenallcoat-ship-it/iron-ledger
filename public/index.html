@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ledger">
-<script>window.__BUILD__ = "2026-09-10T09:33:56.952Z";</script>
+<script>window.__BUILD__ = "2026-09-10T09:59:58.116Z";</script>
 <title>Iron Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -296,6 +296,7 @@
   .btn-primary{background:var(--ink);color:var(--ground);border-color:var(--ink)}
   .btn-primary:hover{opacity:.87}
   .btn-done{background:var(--done);color:#fff;border-color:var(--done)}
+  a.btn{display:inline-block;text-decoration:none;line-height:normal}
   .btn-ghost{background:transparent;border-color:transparent;color:var(--muted);
     text-decoration:underline;text-underline-offset:3px;font-weight:500;padding:11px 4px}
   .btn-ghost:hover{color:var(--ink)}
@@ -1045,6 +1046,11 @@
         <div class="eyebrow" style="margin-bottom:8px">What you track</div>
         <div class="setup-opts" id="track-opts"></div>
         <p class="sec-note" id="track-note" style="margin-top:8px"></p>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:8px">Phone lock</div>
+        <div class="setup-opts" id="lock-opt"></div>
+        <p class="sec-note" id="lock-note" style="margin-top:8px"></p>
       </div>
       <div>
         <div class="eyebrow" style="margin-bottom:8px">Scheme</div>
@@ -3620,6 +3626,35 @@ function bellRow(w){
     + (prev && !cur ? '<span class="lift-bells-last">last time '+esc(prev.load)+'</span>' : "")
     + '</div>';
 }
+/* ---------- the phone lock ----------
+   The block itself is Jomo's (an App Store blocker with Shortcuts actions);
+   this app can't touch other apps and never will. What it holds is the one
+   thing the block needs to know — whether tonight is owed — and, once it
+   isn't, a button that runs the shortcut which lifts it. Per device, because
+   the shortcut lives on the phone, not in the record. */
+const UNLOCK_SHORTCUT = "Iron Ledger Unlock";
+const UNLOCK_URL = "shortcuts://run-shortcut?name=" + encodeURIComponent(UNLOCK_SHORTCUT);
+function phoneLock(){ try{ return localStorage.getItem("iron-ledger-lock") === "1"; }catch(e){ return false; } }
+function setPhoneLock(on){
+  try{ if(on) localStorage.setItem("iron-ledger-lock", "1"); else localStorage.removeItem("iron-ledger-lock"); }catch(e){}
+  renderAll();
+}
+function renderLockOpt(){
+  const host = document.getElementById("lock-opt");
+  if(!host) return;
+  const on = phoneLock();
+  host.innerHTML =
+    '<button class="setup-opt" type="button" id="lock-toggle" aria-pressed="' + on + '">'
+      + (on ? "Set up on this phone" : "Not set up") + '</button>';
+  document.getElementById("lock-toggle").onclick = function(){ setPhoneLock(!on); };
+  const note = document.getElementById("lock-note");
+  if(note) note.textContent = on
+    ? "Once tonight\u2019s session is logged, the card shows Unlock my phone. It runs the shortcut \u201c"
+      + UNLOCK_SHORTCUT + "\u201d, which checks the ledger before it lifts the block."
+    : "For a blocker app (Jomo) that locks games and social media until you\u2019ve trained. "
+      + "Set up the two shortcuts first, then switch this on.";
+}
+
 function renderSession(){
   const host = document.getElementById("session"), note = document.getElementById("today-note");
   const sk = sessionToday(), week = weekNumber(), phase = dayPhase();
@@ -3681,6 +3716,10 @@ function renderSession(){
     +'<div class="actions">'
       +(done ? "" : '<button class="btn btn-primary" type="button" id="sm-start">Start session</button>')
       +'<button class="btn '+(done?"btn-done":"")+'" type="button" id="log-btn">'+(done?"Session logged ✓":"Mark session done")+'</button>'
+      /* The phone lock's key. A link, not a script: iOS only hands a
+         shortcuts:// address to the Shortcuts app from a real tap. The
+         shortcut asks the server before it lifts anything. */
+      +((done || hasPass(TODAY_K, "rest")) && phoneLock() ? '<a class="btn btn-primary" id="unlock-btn" href="'+UNLOCK_URL+'">Unlock my phone</a>' : "")
       +(done ? '<button class="btn btn-ghost" type="button" id="undo-btn">Undo</button>'
              : '<button class="btn btn-ghost" type="button" id="skip-btn">I\'m skipping tonight</button>')
       +'<span class="act-note" id="tick-note">'+ticked.length+'/'+list.length+' ticked</span></div>'
@@ -5866,6 +5905,7 @@ function renderAll(){
   draw("impact", renderImpactPicker);
   draw("goal", renderGoal);
   draw("what you track", renderTrackOpts);
+  draw("phone lock", renderLockOpt);
   draw("key", renderKeyBlock);
   /* renderAll runs once during boot, before this module is assigned, so this
      has to tolerate its absence. */

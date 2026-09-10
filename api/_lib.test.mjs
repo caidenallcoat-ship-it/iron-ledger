@@ -223,6 +223,30 @@ const unset = buildNudge(base({}, { start: day(30), chores: lateJobs, tracking: 
 ok("unset still means everything", /Bin emptied/.test(unset.body), unset.body);
 
 console.log("");
+console.log("tonight: the question the phone lock asks");
+const { tonight } = await import("./_lib.js");
+const t0 = tonight(base({}, { start: day(10) }), TODAY);
+ok("nothing logged, nothing excusing it: owed", t0.owed === true && t0.why === "owed", JSON.stringify(t0));
+ok("and the line names the session", /^Session A — .+ isn't done\. 0 of 3 this week\.$/.test(t0.line), t0.line);
+ok("trained today: not owed", tonight(base({ [TODAY]: { key: "A", at: "x" } }), TODAY).why === "trained");
+ok("an earned rest day: not owed", tonight(base({}, { passes: { [TODAY]: ["rest"] } }), TODAY).why === "rest");
+ok("an old single-string rest pass still counts", tonight(base({}, { passes: { [TODAY]: "rest" } }), TODAY).why === "rest");
+ok("a quiet evening does not excuse the session",
+  tonight(base({}, { passes: { [TODAY]: ["quiet"] } }), TODAY).why === "owed");
+ok("a booked evening: not owed", tonight(base({}, { busy: { [TODAY]: "Dinner" } }), TODAY).why === "busy");
+// Wednesday 9th; Monday 7th and Tuesday 8th trained, target 2 -> the week is done.
+const metWeek = tonight(base({ [day(1)]: { key: "A" }, [day(2)]: { key: "B" } }, { target: 2 }), TODAY);
+ok("the week already met: not owed", metWeek.why === "week_met", JSON.stringify(metWeek));
+// Same two days, target 3: two running, and Thu-Sun is plenty for one more.
+const spacedT = tonight(base({ [day(1)]: { key: "A" }, [day(2)]: { key: "B" } }), TODAY);
+ok("two days running with room left: not owed, same as the notification", spacedT.why === "spacing", JSON.stringify(spacedT));
+ok("one day running is still owed", tonight(base({ [day(1)]: { key: "A" } }), TODAY).why === "owed");
+// Two running but the rest of the week is booked: tonight is needed after all.
+const booked = { [day(-1)]: 1, [day(-2)]: 1, [day(-3)]: 1, [day(-4)]: 1 };
+ok("two running with no room left: owed",
+  tonight(base({ [day(1)]: { key: "A" }, [day(2)]: { key: "B" } }, { busy: booked }), TODAY).why === "owed");
+
+console.log("");
 console.log("day one names the right time");
 const { slotText } = await import("./_lib.js");
 ok("a 17:30 slot reads as 17:30", slotText({ slot: 17.5 }) === "17:30");

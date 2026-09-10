@@ -263,6 +263,82 @@ knows before you've put the bell down.
 Pair it with Shortcut 5 and the two directions close a loop: your kettlebell
 work shows up in Fitness, and finishing it marks the week here.
 
+## Locking your phone until you've trained
+
+A web app cannot block other apps on an iPhone — only App Store apps that
+Apple lets use Screen Time can. So the block is **Jomo**'s (free, App Store),
+and the ledger supplies the one thing Jomo can't know: whether tonight's
+session is still owed.
+
+`GET /api/session` answers that in `why`, a plain word a Shortcut can compare:
+
+| `why`      | means                                                   | locked? |
+|------------|---------------------------------------------------------|---------|
+| `owed`     | nothing logged, nothing lets tonight off                | yes     |
+| `trained`  | logged today                                            | no      |
+| `rest`     | you spent an earned rest day on today                   | no      |
+| `busy`     | the calendar (Shortcut 6) says tonight is spoken for    | no      |
+| `week_met` | the week's number is already done                       | no      |
+| `spacing`  | two days running and the week still fits without tonight | no     |
+
+Same rules as the evening notification, so the lock never argues with it.
+An "evening off the ledger" reward does **not** lift it — that buys silence,
+not the session. `line` is a ready-made sentence for an alert, e.g.
+*"Session A — Lower body & hinge isn't done. 1 of 3 this week."*
+
+### In Jomo, once
+
+Make a template called **Until I've trained** that blocks Games and Social
+(and anything else that eats your evenings). Leave Phone, Messages, Music and
+Iron Ledger out of it.
+
+### Shortcut 11 — "Iron Ledger Lock"
+
+1. **Get Contents of URL** — `https://iron-ledger-cade10.vercel.app/api/session`,
+   method GET, header `x-ledger-key` = your key.
+2. **Get Dictionary Value** — key `why`.
+3. **If** Dictionary Value **is** `owed`:
+   - Jomo → **Start Session** — template *Until I've trained*, duration 4 hours
+     (from 18:00 that runs to the 22:00 hard stop).
+   - **Get Dictionary Value** `line` from Contents of URL → **Show Notification**.
+4. **End If.**
+
+Then Automation → **Time of Day** 18:00, Daily, **Run Immediately** →
+Run Shortcut *Iron Ledger Lock*.
+
+### Shortcut 12 — "Iron Ledger Unlock"
+
+The name must be exactly **Iron Ledger Unlock**: the app's *Unlock my phone*
+button runs it by name.
+
+1. **Get Contents of URL** — the same GET as above.
+2. **Get Dictionary Value** — key `why`.
+3. **If** Dictionary Value **is** `owed`:
+   - **Get Dictionary Value** `line` → **Show Alert**. Nothing is unlocked.
+   - **Stop This Shortcut.**
+4. **Otherwise:**
+   - Jomo → **Stop Session** — template *Until I've trained*.
+   - **Get Dictionary Value** `line` → **Show Notification**.
+5. **End If.**
+
+It asks the ledger before it lifts anything, so running it by hand on an
+evening you haven't trained just tells you what's owed.
+
+### Wiring it up
+
+- In the app: **Settings → Phone lock → switch it on** (per phone). From then
+  on the session card shows **Unlock my phone** once tonight's session is
+  logged, or on a rest day you've spent.
+- If the Watch logs your session (Shortcut 9), add **Run Shortcut → Iron
+  Ledger Unlock** as the last step of that automation and the phone unlocks
+  as the workout ends.
+- Test it once in daylight: run the lock, check a game won't open, log a
+  session, tap the button. If you turn on Jomo's strict mode, check the Stop
+  Session action still works under it.
+
+It is exactly as strong as your willingness not to delete the automation.
+That's also true of every blocker on the App Store.
+
 ## Weight
 
 Accepted now that something reads it — the eating panel shows a **four-week

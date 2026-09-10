@@ -227,6 +227,66 @@ export function slotText(state) {
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
 
+/**
+ * Is tonight's session still owed? The one question a phone lock needs
+ * answered, and it must agree with the notification or the two would argue:
+ * a lock that stays on during an earned rest day, or on the evening the
+ * notification has just said "train or don't", teaches you to delete it.
+ *
+ * `why` is a plain word so a Shortcut can compare it as text:
+ *   owed      nothing logged, and nothing lets tonight off
+ *   trained   logged today
+ *   rest      an earned rest day was spent on today
+ *   busy      the calendar says tonight is spoken for
+ *   week_met  the week's number is already done
+ *   spacing   two or more days running, and the week still fits without tonight
+ * An evening bought off the ledger ("quiet") is deliberately NOT here: it
+ * silences the app, it doesn't excuse the session.
+ */
+export function tonight(state, todayKey) {
+  const done = (state && state.done) || {};
+  const passes = (state && state.passes) || {};
+  const busy = (state && state.busy) || {};
+  const target = Number(state && state.target) >= 1 && Number(state.target) <= 7 ? Number(state.target) : 3;
+  const monday = addDays(todayKey, -((dowOf(todayKey) + 6) % 7));
+  let weekDone = 0, weekRested = 0;
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(monday, i);
+    if (done[k]) weekDone++;
+    else if (hasPass(passes, k, "rest")) weekRested++;
+  }
+  const bar = Math.max(1, target - weekRested);
+  const sk = done[todayKey] && done[todayKey].key ? done[todayKey].key : nextSessionKey(done);
+  const name = SESSIONS[sk] ? SESSIONS[sk].name : "";
+
+  let why = "owed";
+  if (done[todayKey]) why = "trained";
+  else if (hasPass(passes, todayKey, "rest")) why = "rest";
+  else if (busy[todayKey]) why = "busy";
+  else if (weekDone >= bar) why = "week_met";
+  else {
+    let backToBack = 0;
+    for (let i = 1; i <= 7; i++) { if (done[addDays(todayKey, -i)]) backToBack++; else break; }
+    let freeAfter = 0;
+    for (let i = 0; i < 7; i++) {
+      const k = addDays(monday, i);
+      if (k > todayKey && !busy[k] && !done[k]) freeAfter++;
+    }
+    if (backToBack >= 2 && freeAfter >= bar - weekDone) why = "spacing";
+  }
+
+  const week = `${weekDone} of ${target} this week`;
+  const line = {
+    owed: `Session ${sk} — ${name} isn't done. ${week}.`,
+    trained: `Session ${sk} logged. ${week}.`,
+    rest: `Rest day, earned. ${week}.`,
+    busy: `Tonight's spoken for. ${week}.`,
+    week_met: `Week's done — ${week.replace(" this week", "")}.`,
+    spacing: `Two days running and the week fits without tonight. ${week}.`,
+  }[why];
+  return { owed: why === "owed", why, line, session: sk, thisWeek: weekDone, target };
+}
+
 export function buildNudge(state, todayKey) {
   if (!state) {
     return { title: "Iron Ledger", body: "No record found. Open the app and log something." };
