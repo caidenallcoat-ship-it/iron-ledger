@@ -886,6 +886,8 @@
       <p class="v-sub" id="v-sub"></p>
     </section>
 
+    <div class="reweigh" id="yesterday" hidden></div>
+
     <section id="s-today">
       <div class="sec-head"><h2>Today</h2><p class="sec-note" id="today-note"></p></div>
       <div class="panel" id="session"></div>
@@ -3818,6 +3820,49 @@ function logSession(k, sk, express){
   if(typeof Mates !== "undefined") Mates.load(true);
 }
 
+/* ---------- the day nobody wrote down ----------
+   A blank yesterday is either a day off or a session that happened and wasn't
+   logged, and the record can't tell which. It used to assume the first: the
+   morning after a real session opened on a red "2 days quiet", and the only
+   way to correct it was tapping a square on the twelve-week grid that nothing
+   pointed you to. So the day after, it asks — once, and one tap either way.
+   Older days are still the grid's job. */
+function unloggedYesterday(){
+  const y = key(addDays(TODAY, -1));
+  if(!state.start || y < state.start || state.done[y]) return null;
+  if(passesOn(y).length) return null;          // an earned day was spent on it
+  if(state.yAsked === y) return null;          // already answered
+  return y;
+}
+function renderYesterday(){
+  const host = document.getElementById("yesterday");
+  if(!host) return;
+  const y = unloggedYesterday();
+  host.hidden = !y;
+  if(!y) return;
+  const sk = nextSessionKey();
+  host.innerHTML =
+    '<h4>Nothing logged yesterday</h4>'
+    + '<p>Either you didn\u2019t train or you didn\u2019t write it down, and the record can\u2019t tell which. '
+      + 'If you trained, it goes in as <b>Session ' + sk + ' \u2014 ' + esc(SESSIONS[sk].name) + '</b>, '
+      + 'marked as logged the day after.</p>'
+    + '<div class="actions">'
+      + '<button class="btn btn-primary" type="button" id="y-log">I trained yesterday</button>'
+      + '<button class="btn btn-ghost" type="button" id="y-no">I didn\u2019t</button>'
+    + '</div>';
+  document.getElementById("y-log").onclick = function(){
+    if(!state.done[y]) state.done[y] = {key:nextSessionKey(), at:new Date().toISOString(), backfilled:true};
+    state.yAsked = y;
+    const st = weekStreak();
+    if(st > (state.longest || 0)) state.longest = st;
+    save(); renderAll();
+  };
+  document.getElementById("y-no").onclick = function(){
+    state.yAsked = y;
+    save(); renderAll();
+  };
+}
+
 function renderCal(){
   const cal = document.getElementById("cal"), WEEKS = 12;
   const dow = (TODAY.getDay()+6)%7;
@@ -5864,6 +5909,7 @@ function renderAll(){
   renderFaults = [];
   draw("masthead", renderMasthead); draw("clock", renderClock);
   draw("verdict", renderVerdict);   draw("rank", renderRank);
+  draw("yesterday", renderYesterday);
   draw("about you", renderAboutYou);
   draw("mates", renderMates);
   draw("kit", maybeAskForKit);
